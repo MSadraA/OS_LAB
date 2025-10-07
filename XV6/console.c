@@ -245,6 +245,23 @@ cgaputc(int c)
   crt[pos] = ' ' | 0x0700;
 }
 
+void move_cursor(int dir)
+{
+  outb(CRTPORT, 14);
+  int pos = inb(CRTPORT+1) << 8;
+  outb(CRTPORT, 15);
+  pos |= inb(CRTPORT+1);
+
+  pos += dir;
+  if (pos < 0) pos = 0;
+  if (pos > 80*25 - 1) pos = 80*25 - 1;
+
+  outb(CRTPORT, 14);
+  outb(CRTPORT+1, pos >> 8);
+  outb(CRTPORT, 15);
+  outb(CRTPORT+1, pos);
+}
+
 void
 consputc(int c)
 {
@@ -358,6 +375,11 @@ consoleintr(int (*getc)(void))
 
       case KBD_KEY_LEFT:
       // Left Arrow
+      if (input.e != input.w)
+      {
+        move_cursor(-1);
+        input.e--;
+      }
       if (input.r != clipboard.end_index)
       {
         clipboard.end_index--;
