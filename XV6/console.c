@@ -400,15 +400,16 @@ consoleintr(int (*getc)(void))
         break;
       }
       
-      case C('D'): // Ctrl + D
+    case C('D'): // Ctrl + D
       {
         int line_end = input.w + strlen(input.buf + input.w);
-        
+        // Move to the end of the current word
         while (input.e < line_end && input.buf[input.e % INPUT_BUF] != ' ' && input.buf[input.e % INPUT_BUF] != '\0')
         {
           move_cursor(1);
           input.e++;
         }
+        // Move to the beginning of the next word
         while (input.e < line_end && input.buf[input.e % INPUT_BUF] == ' ')
         {
           move_cursor(1);
@@ -417,6 +418,28 @@ consoleintr(int (*getc)(void))
         break;
       }
       
+    case C('A'): // Ctrl + A
+      {
+        if (input.e <= input.w)
+          break;
+        // Move to the beginning of the line
+        if (input.buf[(input.e - 1 + INPUT_BUF) % INPUT_BUF] == ' ')
+        {
+          while (input.e > input.w && input.buf[(input.e - 1 + INPUT_BUF) % INPUT_BUF] == ' ')
+          {
+            move_cursor(-1);
+            input.e--;
+          }
+        }
+        // Move to the beginning of the current word
+        while (input.e > input.w && input.buf[(input.e - 1 + INPUT_BUF) % INPUT_BUF] != ' ')
+        {
+          move_cursor(-1);
+          input.e--;
+        }
+        break;
+      }
+
     default:
 
       if(c != 0 && input.e-input.r < INPUT_BUF){
