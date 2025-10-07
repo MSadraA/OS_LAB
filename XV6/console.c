@@ -56,6 +56,7 @@ const char EXCLAMATION_CHAR = '!';
 #define KBD_BACKSAPCE 0x08
 #define KBD_CTRL_H 0x19
 #define KBD_KEY_LEFT 0xE4
+#define KBD_KEY_RIGHT 0xE5
 
 // Clipboard buffer
 typedef struct {
@@ -286,13 +287,24 @@ struct {
 } input;
 
 
-void redraw_from_edit_point(int end) {
-  for (int i = input.e; i < end; i++)
+void redraw_from_edit_point(void) {
+  int i = input.e;
+
+  // از محل ویرایش تا انتهای بافر چاپ کن
+  while (input.buf[i] != '\0') {
     consputc(input.buf[i]);
+    i++;
+  }
+
+  // چاپ یه فاصله برای پاک شدن کاراکتر اضافی (مثلاً بعد از حذف)
   consputc(' ');
-  for (int i = end + 1; i > input.e; i--)
+
+  // برگردوندن کرسر به موقعیت اولیه
+  for (; i >= input.e; i--)
     move_cursor(-1);
 }
+
+
 
 void delete_char(int end) {
   for (int i = input.e - 1; i < end - 1; i++)
@@ -300,7 +312,7 @@ void delete_char(int end) {
   input.e--;
 
   move_cursor(-1);
-  redraw_from_edit_point(end);
+  redraw_from_edit_point();
 }
 
 void insert_char(char c , int end) {
@@ -320,7 +332,7 @@ void insert_char(char c , int end) {
   // cprintf("\n");
   // acquire(&cons.lock);
 
-  // redraw_from_edit_point(end);
+  redraw_from_edit_point();
 }
 
 #define C(x)  ((x)-'@')  // Control-x
@@ -434,7 +446,24 @@ consoleintr(int (*getc)(void))
       // cprintf("[DBG] r=%d e=%d end=%d \n", input.r, input.e, input.w + strlen(input.buf + input.w));
       // acquire(&cons.lock);
 
+      // if (input.r != clipboard.end_index)
+      // {
+      //   clipboard.end_index--;
+      // }
+      // being_copied = 1;
       break;
+
+      case KBD_KEY_RIGHT:
+      // Right Arrow
+      int line_end = input.w + strlen(input.buf + input.w);
+      if (input.e < input.w + INPUT_BUF && input.e < line_end)
+      {
+        move_cursor(1);
+        input.e++;
+      }
+      break;
+    
+
 
     default:
       
@@ -455,8 +484,8 @@ consoleintr(int (*getc)(void))
 
 
         if(c == '\n' || c == C('D') || input.e == input.r+INPUT_BUF){
-          input.w = end;
-          input.e = end;
+          input.buf[end] = '\0';
+          input.e = input.w = end;
           wakeup(&input.r);
         }
 
