@@ -374,7 +374,7 @@ consoleintr(int (*getc)(void))
       acquire(&cons.lock);
       break;
 
-      case KBD_KEY_LEFT:
+    case KBD_KEY_LEFT:
       // Left Arrow
       if (input.e != input.w)
       {
@@ -388,18 +388,41 @@ consoleintr(int (*getc)(void))
       // being_copied = 1;
       break;
 
-      case KBD_KEY_RIGHT:
-      // Right Arrow
-      int line_end = input.w + strlen(input.buf + input.w);
-      if (input.e < input.w + INPUT_BUF && input.e < line_end)
+    case KBD_KEY_RIGHT:
       {
-        move_cursor(1);
-        input.e++;
+        // Right Arrow
+        int line_end = input.w + strlen(input.buf + input.w);
+        if (input.e < input.w + INPUT_BUF && input.e < line_end)
+        {
+          move_cursor(1);
+          input.e++;
+        }
+        break;
       }
-      break;
+      
+      case C('D'): // Ctrl + D
+      {
+        // محاسبه انتهای خط برای توقف امن
+        int line_end = input.w + strlen(input.buf + input.w);
+      
+        // حالا از موقعیت فعلی (که روی یک حرف است) تا رسیدن به space بعدی حرکت کن
+        while (input.e < line_end && input.buf[input.e % INPUT_BUF] != ' ' && input.buf[input.e % INPUT_BUF] != '\0')
+        {
+          move_cursor(1);
+          input.e++;
+        }
+        
+        // حالا از روی space‌ها عبور کن تا برسی به اولین حرف بعدی
+        while (input.e < line_end && input.buf[input.e % INPUT_BUF] == ' ')
+        {
+          move_cursor(1);
+          input.e++;
+        }
+      
+        break;
+      }
+      
     
-
-
     default:
 
       if(c != 0 && input.e-input.r < INPUT_BUF){
