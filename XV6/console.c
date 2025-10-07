@@ -56,6 +56,7 @@ const char EXCLAMATION_CHAR = '!';
 #define KBD_BACKSAPCE 0x08
 #define KBD_CTRL_H 0x19
 #define KBD_KEY_LEFT 0xE4
+#define KBD_KEY_RIGHT 0xE5
 
 // Clipboard buffer
 typedef struct {
@@ -380,12 +381,24 @@ consoleintr(int (*getc)(void))
         move_cursor(-1);
         input.e--;
       }
-      if (input.r != clipboard.end_index)
-      {
-        clipboard.end_index--;
-      }
-      being_copied = 1;
+      // if (input.r != clipboard.end_index)
+      // {
+      //   clipboard.end_index--;
+      // }
+      // being_copied = 1;
       break;
+
+      case KBD_KEY_RIGHT:
+      // Right Arrow
+      int line_end = input.w + strlen(input.buf + input.w);
+      if (input.e < input.w + INPUT_BUF && input.e < line_end)
+      {
+        move_cursor(1);
+        input.e++;
+      }
+      break;
+    
+
 
     default:
 
