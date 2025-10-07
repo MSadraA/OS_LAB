@@ -428,7 +428,7 @@ consoleintr(int (*getc)(void))
       acquire(&cons.lock);
       break;
 
-      case KBD_KEY_LEFT:
+    case KBD_KEY_LEFT:
       // Left Arrow
       if (input.e != input.w)
       {
@@ -453,17 +453,57 @@ consoleintr(int (*getc)(void))
       // being_copied = 1;
       break;
 
-      case KBD_KEY_RIGHT:
-      // Right Arrow
-      int line_end = input.w + strlen(input.buf + input.w);
-      if (input.e < input.w + INPUT_BUF && input.e < line_end)
+    case KBD_KEY_RIGHT:
       {
-        move_cursor(1);
-        input.e++;
+        // Right Arrow
+        int line_end = input.w + strlen(input.buf + input.w);
+        if (input.e < input.w + INPUT_BUF && input.e < line_end)
+        {
+          move_cursor(1);
+          input.e++;
+        }
+        break;
       }
-      break;
-    
-
+      
+    case C('D'): // Ctrl + D
+      {
+        int line_end = input.w + strlen(input.buf + input.w);
+        // Move to the end of the current word
+        while (input.e < line_end && input.buf[input.e % INPUT_BUF] != ' ' && input.buf[input.e % INPUT_BUF] != '\0')
+        {
+          move_cursor(1);
+          input.e++;
+        }
+        // Move to the beginning of the next word
+        while (input.e < line_end && input.buf[input.e % INPUT_BUF] == ' ')
+        {
+          move_cursor(1);
+          input.e++;
+        }
+        break;
+      }
+      
+    case C('A'): // Ctrl + A
+      {
+        if (input.e <= input.w)
+          break;
+        // Move to the beginning of the line
+        if (input.buf[(input.e - 1 + INPUT_BUF) % INPUT_BUF] == ' ')
+        {
+          while (input.e > input.w && input.buf[(input.e - 1 + INPUT_BUF) % INPUT_BUF] == ' ')
+          {
+            move_cursor(-1);
+            input.e--;
+          }
+        }
+        // Move to the beginning of the current word
+        while (input.e > input.w && input.buf[(input.e - 1 + INPUT_BUF) % INPUT_BUF] != ' ')
+        {
+          move_cursor(-1);
+          input.e--;
+        }
+        break;
+      }
 
     default:
       
