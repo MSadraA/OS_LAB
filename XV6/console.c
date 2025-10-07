@@ -489,6 +489,7 @@ consoleintr(int (*getc)(void))
           // cprintf("[DBG] r=%d e=%d end=%d w=%d buf=%s\n", input.r, input.e, input.end, input.w, input.buf);
           // acquire(&cons.lock);
           input.buf[input.end++ % INPUT_BUF] = '\n';
+          consputc('\n');
           input.w = input.end;
           input.e = input.end;
           wakeup(&input.r);

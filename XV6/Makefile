@@ -185,6 +185,7 @@ UPROGS=\
 	_wc\
 	_zombie\
 	_user_curly_brace_correction_check\
+	_find_sum\
 	_next_palindrome\
 	_make_user\
 	_login\
@@ -267,7 +268,7 @@ qemu-nox-gdb: fs.img xv6.img .gdbinit
 EXTRA=\
 	mkfs.c ulib.c user.h cat.c echo.c forktest.c grep.c kill.c\
 	ln.c ls.c mkdir.c rm.c stressfs.c usertests.c wc.c zombie.c\
-	printf.c umalloc.c\ user_curly_brace_correction_check.c\ next_palindrome.c\ set_sleep_syscall.c\
+	printf.c umalloc.c\ user_curly_brace_correction_check.c\ next_palindrome.c\ set_sleep_syscall.c\ find_sum.c\
 	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\ sched_tests.c\
 	.gdbinit.tmpl gdbutil\
 
