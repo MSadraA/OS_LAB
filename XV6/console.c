@@ -285,6 +285,44 @@ struct {
   uint e;  // Edit index
 } input;
 
+
+void redraw_from_edit_point(int end) {
+  for (int i = input.e; i < end; i++)
+    consputc(input.buf[i]);
+  consputc(' ');
+  for (int i = end + 1; i > input.e; i--)
+    move_cursor(-1);
+}
+
+void delete_char(int end) {
+  for (int i = input.e - 1; i < end - 1; i++)
+    input.buf[i] = input.buf[i + 1];
+  input.e--;
+
+  move_cursor(-1);
+  redraw_from_edit_point(end);
+}
+
+void insert_char(char c , int end) {
+
+  // release(&cons.lock);
+  //     cprintf("[DBG] r=%d e=%d end=%d \n", input.r, input.e, input.w + strlen(input.buf + input.w));
+  //     acquire(&cons.lock);
+
+  for (int i = end; i > input.e; i--)
+    input.buf[i] = input.buf[i - 1];
+
+  input.buf[input.e++ % INPUT_BUF] = c;
+
+  // release(&cons.lock);
+  // cprintf("\n");
+  // cprintf(input.buf);
+  // cprintf("\n");
+  // acquire(&cons.lock);
+
+  // redraw_from_edit_point(end);
+}
+
 #define C(x)  ((x)-'@')  // Control-x
 
 void
@@ -312,8 +350,13 @@ consoleintr(int (*getc)(void))
       case KBD_BACKSAPCE: case '\x7f':  // Backspace
       being_copied = 0;
       if(input.e != input.w){
-        input.e--;
-        consputc(BACKSPACE);
+        // if (input.e > input.r) {
+        //   delete_char();
+        // }
+        // else{
+          input.e--;
+          consputc(BACKSPACE);
+        // }
       }
       break;
     case KBD_CTRL_H: // CTRL + H. History
@@ -378,25 +421,42 @@ consoleintr(int (*getc)(void))
       if (input.e != input.w)
       {
         move_cursor(-1);
-        input.e--;
+        input.e = input.e - 1;
+        
       }
       if (input.r != clipboard.end_index)
       {
         clipboard.end_index--;
       }
       being_copied = 1;
+      
+      // release(&cons.lock);
+      // cprintf("[DBG] r=%d e=%d end=%d \n", input.r, input.e, input.w + strlen(input.buf + input.w));
+      // acquire(&cons.lock);
+
       break;
 
     default:
+      
 
       if(c != 0 && input.e-input.r < INPUT_BUF){
         c = (c == '\r') ? '\n' : c;
-        input.buf[input.e++ % INPUT_BUF] = c;
+        
+        int end = input.w + strlen(input.buf + input.w);
+        
+        if (input.e < end && input.e > input.r && c != '\n'){
+          insert_char(c, end);
+        }
+        else
+        {
+          input.buf[input.e++ % INPUT_BUF] = c;
+          consputc(c);
+        }
 
-        consputc(c);
 
         if(c == '\n' || c == C('D') || input.e == input.r+INPUT_BUF){
-          input.w = input.e;
+          input.w = end;
+          input.e = end;
           wakeup(&input.r);
         }
 
