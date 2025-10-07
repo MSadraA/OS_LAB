@@ -402,27 +402,21 @@ consoleintr(int (*getc)(void))
       
       case C('D'): // Ctrl + D
       {
-        // محاسبه انتهای خط برای توقف امن
         int line_end = input.w + strlen(input.buf + input.w);
-      
-        // حالا از موقعیت فعلی (که روی یک حرف است) تا رسیدن به space بعدی حرکت کن
+        
         while (input.e < line_end && input.buf[input.e % INPUT_BUF] != ' ' && input.buf[input.e % INPUT_BUF] != '\0')
         {
           move_cursor(1);
           input.e++;
         }
-        
-        // حالا از روی space‌ها عبور کن تا برسی به اولین حرف بعدی
         while (input.e < line_end && input.buf[input.e % INPUT_BUF] == ' ')
         {
           move_cursor(1);
           input.e++;
         }
-      
         break;
       }
       
-    
     default:
 
       if(c != 0 && input.e-input.r < INPUT_BUF){
