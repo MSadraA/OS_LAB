@@ -284,53 +284,47 @@ struct {
   uint r;  // Read index
   uint w;  // Write index
   uint e;  // Edit index
+  uint end; // End index
 } input;
 
 
 void redraw_from_edit_point(void) {
-  int i = input.e;
-
-  // از محل ویرایش تا انتهای بافر چاپ کن
-  while (input.buf[i] != '\0') {
+  
+  for (int i = input.e; i < input.end; i++)
     consputc(input.buf[i]);
-    i++;
-  }
 
-  // چاپ یه فاصله برای پاک شدن کاراکتر اضافی (مثلاً بعد از حذف)
-  consputc(' ');
-
-  // برگردوندن کرسر به موقعیت اولیه
-  for (; i >= input.e; i--)
-    move_cursor(-1);
-}
-
-
-
-void delete_char(int end) {
-  for (int i = input.e - 1; i < end - 1; i++)
-    input.buf[i] = input.buf[i + 1];
-  input.e--;
-
+  for (int i = input.end; i > input.e; i--)
   move_cursor(-1);
-  redraw_from_edit_point();
 }
 
-void insert_char(char c , int end) {
+void delete_char() {
+  if (input.e <= input.w) return;
 
-  // release(&cons.lock);
-  //     cprintf("[DBG] r=%d e=%d end=%d \n", input.r, input.e, input.w + strlen(input.buf + input.w));
-  //     acquire(&cons.lock);
+  if(input.e == input.end){
+    consputc(BACKSPACE);
+  }
+  else{
+    for (int i = input.e - 1; i < input.end - 1; i++) 
+      input.buf[i] = input.buf[i + 1];
+    move_cursor(-1);
+    redraw_from_edit_point();
+  }
+  input.e--;
+  input.end--;
+  input.buf[input.end % INPUT_BUF] = '\0';
+}
 
-  for (int i = end; i > input.e; i--)
+void insert_char(char c) {
+  if(c == '\n') return;
+  
+  for (int i = input.end ; i > input.e; i--)
     input.buf[i] = input.buf[i - 1];
 
-  input.buf[input.e++ % INPUT_BUF] = c;
+  consputc(c);
 
-  // release(&cons.lock);
-  // cprintf("\n");
-  // cprintf(input.buf);
-  // cprintf("\n");
-  // acquire(&cons.lock);
+  input.buf[input.e++ % INPUT_BUF] = c;
+  input.end ++;
+  input.buf[input.end % INPUT_BUF] = '\0';
 
   redraw_from_edit_point();
 }
@@ -349,7 +343,6 @@ consoleintr(int (*getc)(void))
       // procdump() locks cons.lock indirectly; invoke later
       doprocdump = 1;
       being_copied = 0;
-
       break;
     case C('U'):  // Kill line. CTRL+U
       being_copied = 0;
@@ -359,17 +352,9 @@ consoleintr(int (*getc)(void))
         consputc(BACKSPACE);
       }
       break;
-      case KBD_BACKSAPCE: case '\x7f':  // Backspace
+    case KBD_BACKSAPCE: case '\x7f':  // Backspace
       being_copied = 0;
-      if(input.e != input.w){
-        // if (input.e > input.r) {
-        //   delete_char();
-        // }
-        // else{
-          input.e--;
-          consputc(BACKSPACE);
-        // }
-      }
+      delete_char();
       break;
     case KBD_CTRL_H: // CTRL + H. History
       being_copied = 0;
@@ -388,7 +373,6 @@ consoleintr(int (*getc)(void))
           }
           strncpy(input.buf + input.w, result, INPUT_BUF - input.w);
           input.e = input.w + strlen(result);
-        //////////////////////////////////////
           cprintf("%s", result);
       }
       acquire(&cons.lock);
@@ -433,24 +417,14 @@ consoleintr(int (*getc)(void))
       if (input.e != input.w)
       {
         move_cursor(-1);
-        input.e = input.e - 1;
-        
+        input.e --;
       }
       if (input.r != clipboard.end_index)
       {
         clipboard.end_index--;
       }
       being_copied = 1;
-      
-      // release(&cons.lock);
-      // cprintf("[DBG] r=%d e=%d end=%d \n", input.r, input.e, input.w + strlen(input.buf + input.w));
-      // acquire(&cons.lock);
-
-      // if (input.r != clipboard.end_index)
-      // {
-      //   clipboard.end_index--;
-      // }
-      // being_copied = 1;
+    
       break;
 
     case KBD_KEY_RIGHT:
@@ -506,30 +480,20 @@ consoleintr(int (*getc)(void))
       }
 
     default:
-      
-
       if(c != 0 && input.e-input.r < INPUT_BUF){
         c = (c == '\r') ? '\n' : c;
-        
-        int end = input.w + strlen(input.buf + input.w);
-        
-        if (input.e < end && input.e > input.r && c != '\n'){
-          insert_char(c, end);
-        }
-        else
-        {
-          input.buf[input.e++ % INPUT_BUF] = c;
-          consputc(c);
-        }
+        insert_char(c);
 
-
-        if(c == '\n' || c == C('D') || input.e == input.r+INPUT_BUF){
-          input.buf[end] = '\0';
-          input.e = input.w = end;
+        if (c == '\n' || input.e == input.r + INPUT_BUF || c == C('D')) {
+          // release(&cons.lock);
+          // cprintf("[DBG] r=%d e=%d end=%d w=%d buf=%s\n", input.r, input.e, input.end, input.w, input.buf);
+          // acquire(&cons.lock);
+          input.buf[input.end++ % INPUT_BUF] = '\n';
+          input.w = input.end;
+          input.e = input.end;
           wakeup(&input.r);
         }
 
-        // ! processing
         if(c == '\n' && input.buf[input.r] == EXCLAMATION_CHAR )
         {
           release(&cons.lock);
@@ -539,7 +503,6 @@ consoleintr(int (*getc)(void))
           cprintf("\n");
           acquire(&cons.lock);
         }
-        //////////////////////////////////////////////////////////
         
         // If the command is finished, save it in history
         if (c == '\n')
@@ -592,7 +555,6 @@ consoleread(struct inode *ip, char *dst, int n)
         // caller gets a 0-byte result.
         input.r--;
       }
-
 
       break;
     }
