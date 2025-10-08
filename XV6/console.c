@@ -51,6 +51,22 @@ const char EXCLAMATION_CHAR = '!';
 #define LIGHT_MAGENTA 0xD
 #define YELLOW 0xE
 #define WHITE 0xF
+#define HIGHLIGHT 0xF0
+
+#define NORMAL_COLOR ((BLACK << 4) | LIGHT_GRAY)
+#define HIGHLIGHT_COLOR ((WHITE << 4) | BLACK)
+
+#define RAINBOW_HIGHLIGHT(fg) ((WHITE << 4) | (fg))
+enum RainbowColors {
+  RED_COLOR = LIGHT_RED,
+  ORANGE_COLOR = YELLOW,
+  GREEN_COLOR = LIGHT_GREEN,
+  CYAN_COLOR = LIGHT_CYAN,
+  BLUE_COLOR = LIGHT_BLUE,
+  MAGENTA_COLOR = LIGHT_MAGENTA,
+  RAINBOW_COUNT = 7
+};
+
 
 // KEY DRIVER CODE
 #define KBD_BACKSAPCE 0x08
@@ -103,6 +119,11 @@ void print_colored_keywords(char *input) ;
 void resetClipboard();
 void PasteClipboard();
 void copySToClipboard();
+void highlightSelectedWords();
+void gayConsole();
+uchar getRainbowColor(int offset);
+
+void consputc_color(int c, uchar color);
 
 // <string.h> standar functions
 char* strchr(const char* str, int c);
@@ -402,6 +423,9 @@ consoleintr(int (*getc)(void))
         
         // todo
         // colorise the selected area
+        // highlightSelectedWords();
+        gayConsole();
+        break;
       }
 
       clipboard.flag = 1;
@@ -496,7 +520,7 @@ consoleintr(int (*getc)(void))
           wakeup(&input.r);
         }
 
-        if(c == '\n' && input.buf[input.r] == EXCLAMATION_CHAR )
+        if(c == '\n' && input.buf[input.r] == EXCLAMATION_CHAR)
         {
           release(&cons.lock);
           char* cmd_without_sharps = remove_between_sharps();
@@ -509,6 +533,8 @@ consoleintr(int (*getc)(void))
         // If the command is finished, save it in history
         if (c == '\n')
         {
+          resetClipboard();
+          
           if (input.r != input.w - 1) {
             release(&cons.lock);
             saveLastInHistory();
@@ -521,10 +547,10 @@ consoleintr(int (*getc)(void))
     }
   }
 
-  if (being_copied == 0)
-  {
-    resetClipboard();
-  }
+  // if (being_copied == 0)
+  // {
+  //   resetClipboard();
+  // }
 
   release(&cons.lock);
   if(doprocdump) {
@@ -711,6 +737,69 @@ void copySToClipboard()
     clipboard.valid = 1;
     being_copied = 0;
   }
+}
+
+void highlightSelectedWords() {
+  int original_pos = input.e;
+
+  // move cursor to start_index loc.
+  while (input.e != clipboard.start_index) {
+    if (input.e < clipboard.start_index)
+    {
+      move_cursor(-1);
+      input.e--;
+    } else {      
+      move_cursor(1);
+      input.e++;
+    }
+  }
+
+  // Highlight start to end index
+  for (int i = clipboard.start_index; i < clipboard.end_index; i++) {
+    consputc_color(input.buf[i % INPUT_BUF], HIGHLIGHT_COLOR);
+    input.e++;
+  }
+
+  // return cursor to its original pos
+  while (input.e > original_pos) {
+    move_cursor(-1);
+    input.e--;
+  }
+}
+
+void gayConsole() {
+  int original_pos = input.e;
+
+  // move cursor to start_index loc.
+  while (input.e != clipboard.start_index) {
+    if (input.e < clipboard.start_index) {
+      move_cursor(-1);
+      input.e--;
+    } else {      
+      move_cursor(1);
+      input.e++;
+    }
+  }
+
+  // Highlight start to end index (local rainbow cycle)
+  for (int i = clipboard.start_index; i < clipboard.end_index; i++) {
+    uchar fg = getRainbowColor(i - clipboard.start_index);
+    consputc_color(input.buf[i % INPUT_BUF], RAINBOW_HIGHLIGHT(fg));
+    input.e++;
+  }
+
+  // return cursor to its original pos
+  while (input.e > original_pos) {
+    move_cursor(-1);
+    input.e--;
+  }
+}
+
+uchar getRainbowColor(int offset) {
+  uchar colors[RAINBOW_COUNT] = {
+    RED_COLOR, ORANGE_COLOR, GREEN_COLOR, CYAN_COLOR, BLUE_COLOR, MAGENTA_COLOR
+  };
+  return colors[offset % RAINBOW_COUNT];
 }
 
 // Color functions
