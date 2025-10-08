@@ -306,12 +306,11 @@ struct {
 
 
 void redraw_from_edit_point(void) {
-  
   for (int i = input.e; i < input.end; i++)
     consputc(input.buf[i]);
 
   for (int i = input.end; i > input.e; i--)
-  move_cursor(-1);
+    move_cursor(-1);
 }
 
 void delete_char() {
@@ -319,16 +318,21 @@ void delete_char() {
 
   if(input.e == input.end){
     consputc(BACKSPACE);
+    input.e--;
+    input.end--;
+    input.buf[input.end % INPUT_BUF] = '\0';
   }
   else{
     for (int i = input.e - 1; i < input.end - 1; i++) 
+    {
       input.buf[i] = input.buf[i + 1];
+    }
     move_cursor(-1);
+    input.e--;
+    input.end--;
+    input.buf[input.end % INPUT_BUF] = '\0';
     redraw_from_edit_point();
   }
-  input.e--;
-  input.end--;
-  input.buf[input.end % INPUT_BUF] = '\0';
 }
 
 void insert_char(char c) {
@@ -425,7 +429,7 @@ consoleintr(int (*getc)(void))
       if (input.e != input.w)
       {
         move_cursor(-1);
-        input.e --;
+        input.e--;
       }
       if (input.r != clipboard.end_index)
       {
