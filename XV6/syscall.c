@@ -115,6 +115,7 @@ extern int  sys_logs(void);
 // diff
 extern int sys_diff(void);
 
+extern int sys_list_programs(void);
 
 extern int sys_create_realtime_process(void); //additional
 extern int sys_change_process_queue(void); 
@@ -171,7 +172,7 @@ static int (*syscalls[])(void) = {
 [SYS_get_rw_pattern] sys_get_rw_pattern,
 [SYS_critical_section] sys_critical_section,
 
-
+[SYS_list_programs] sys_list_programs,
 };
 
 int 

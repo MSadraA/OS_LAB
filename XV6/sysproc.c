@@ -7,6 +7,7 @@
 #include "mmu.h"
 #include "proc.h"
 
+
 int
 sys_fork(void)
 {
@@ -254,4 +255,10 @@ sys_critical_section()
 {
   critical_section();
   return 0;
+}
+
+int
+sys_list_programs(void)
+{
+  return list_programs_safe();
 }

@@ -43,3 +43,5 @@
 #define SYS_init_rw_lock 36
 #define SYS_get_rw_pattern 37
 #define SYS_critical_section 38
+
+#define SYS_list_programs 39

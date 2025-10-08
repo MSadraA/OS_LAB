@@ -34,6 +34,23 @@ const char *KEYWORDS[KEYWORDS_CNT] = {"void", "int", "char", "if", "for", "while
 const char *DELIMITER = " ";
 const char EXCLAMATION_CHAR = '!';
 
+// Program listing
+#define MAX_FILES 128
+#define MAX_NAME DIRSIZ
+static int programs_num = 0;
+char programs[MAX_FILES][MAX_NAME];
+
+struct autocomplete_state {
+  int initialized;
+  int tab_state;
+  char last_prefix[MAX_NAME];
+  char matches[MAX_FILES][MAX_NAME];
+  int match_count;
+  int match_index;
+};
+
+static struct autocomplete_state auto_state;
+
 // Color codes
 #define BLACK 0x0
 #define BLUE 0x1
@@ -106,7 +123,7 @@ int min(int a, int b);
 int max(int a, int b);
 
 // Additional functions
-char* find_prefix_match();
+int find_prefix_matches(char *prefix, int n, char matches[MAX_FILES][MAX_NAME]);
 void clean_console(); //todo
 void saveLastInHistory();
 void saveLastInCmdHistory();
@@ -386,12 +403,14 @@ consoleintr(int (*getc)(void))
       while(input.e != input.w &&
             input.buf[(input.e-1) % INPUT_BUF] != '\n'){
         input.e--;
+        input.end --; // have to check
         consputc(BACKSPACE);
       }
       break;
     case KBD_BACKSAPCE: case '\x7f':  // Backspace
       // being_copied = 0;
       delete_char();
+      reset_auto_fill_state();
       break;
     case KBD_CTRL_H: // CTRL + H. History
       resetClipboard();
@@ -401,19 +420,9 @@ consoleintr(int (*getc)(void))
     case '\t': // Tab
       resetClipboard();
         release(&cons.lock);
-        char *result = find_prefix_match();
-        
-        // Some clear function can go here
-        if (result) {
-          for (int i = input.e; i > input.w; i--) {
-              consputc(BACKSPACE);
-          }
-          strncpy(input.buf + input.w, result, INPUT_BUF - input.w);
-          input.e = input.w + strlen(result);
-          cprintf("%s", result);
-      }
-      acquire(&cons.lock);
-      break;
+        handle_auto_fill();
+        acquire(&cons.lock);
+        break;
       
     case C('S'):
       if (clipboard.flag_s == 1)
@@ -636,6 +645,7 @@ consoleinit(void)
   cons.locking = 1;
 
   ioapicenable(IRQ_KBD, 0);
+  // programs_num = list_programs();
 }
 
 void saveLastInHistory()
@@ -694,26 +704,6 @@ void strSplit(char *dst, char *src, int start, int end)
     dst[i++] = src[j];
   }
   dst[i] = '\0';
-}
-
-char* find_prefix_match() {
-  char temp[INPUT_BUF];
-  strSplit(temp, input.buf, input.w, input.e); 
-  int temp_len = strlen(temp);
-
-  // cprintf("Input prefix: %s\n", temp);
-
-  for (int i = cmd_history.size - 1; i >= 0; i--) {
-    char* candidate = cmd_history.buf[i];
-
-    // cprintf("Checking candidate: %s\n", candidate);
-
-    if (strncmp(temp, candidate, temp_len) == 0) {
-      // cprintf("Match found: %s\n", candidate);
-      return candidate;
-    }
-  }
-  return NULL;
 }
 
 void clean_console()
@@ -949,6 +939,136 @@ void print_colored_keywords(char *input) { //input : !if x == 3 return 0
   }
 }
 
+int find_prefix_matches(char *prefix, int n, char matches[MAX_FILES][MAX_NAME]) {
+  int count = 0;
+  int len = strlen(prefix);
+
+  for (int i = 0; i < n; i++) {
+    if (strncmp(programs[i], prefix, len) == 0) {
+      strncpy(matches[count], programs[i], MAX_NAME);
+      matches[count][MAX_NAME - 1] = '\0';
+      count++;
+    }
+  }
+
+  return count;
+}
+
+
+int list_programs_safe(void) // i don't know how it works 
+{
+  struct inode *dp;
+  struct dirent de;
+  uint off;
+  int count = 0;
+
+  begin_op();
+
+  dp = namei("/");
+  if (dp == 0) {
+    cprintf("auto: cannot open root directory\n");
+    end_op();
+    return -1;
+  }
+
+  ilock(dp);
+
+  for (off = 0; off + sizeof(de) <= dp->size; off += sizeof(de)) {
+    if (readi(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
+      break;
+    if (de.inum == 0)
+      continue;
+    if (count >= MAX_FILES)
+      break;
+
+    char namebuf[DIRSIZ + 1];
+    memmove(namebuf, de.name, DIRSIZ);
+    namebuf[DIRSIZ] = 0;
+
+    safestrcpy(programs[count], namebuf, MAX_NAME);
+    programs[count][MAX_NAME - 1] = '\0';
+    count++;
+  }
+
+  iunlockput(dp);
+
+  end_op();
+
+  programs_num = count;
+
+  // some built-in commands
+  safestrcpy(programs[programs_num++], "cd", MAX_NAME);
+  safestrcpy(programs[programs_num++], "exit", MAX_NAME);
+  safestrcpy(programs[programs_num++], "help", MAX_NAME);
+  safestrcpy(programs[programs_num++], "history", MAX_NAME);
+
+  return count;
+}
+
+void
+print_string_array(char arr[][MAX_NAME], int count)
+{
+  cprintf("\n-- String Array (%d entries) --\n", count);
+
+  if (count == 0) {
+    cprintf("(empty)\n");
+    return;
+  }
+
+  for (int i = 0; i < count; i++) {
+    if (arr[i][0] == '\0')
+      continue; // skip empty slots
+    cprintf("%d: %s\n", i, arr[i]);
+  }
+  cprintf("-- End of Array --\n");
+}
+
+
+void clear_line_and_write(const char *cmd){
+  moveCursorToPos(input.end);
+  input.e = input.end;
+  while(input.e > input.w)
+    delete_char();
+
+  for (int i = 0; cmd[i] && i < INPUT_BUF-1; i++) {
+    consputc(cmd[i]);
+    input.buf[input.e % INPUT_BUF] = cmd[i];
+    input.e ++;
+    input.end ++;
+  }
+}
+
+void handle_auto_fill(){
+  if(auto_state.initialized == 0){
+    int j = 0;
+    for(int i = input.w ; i < input.end ; i++ , j++)
+      auto_state.last_prefix[j] = input.buf[i];
+    auto_state.last_prefix[j] = '\0';
+    auto_state.match_count = find_prefix_matches(auto_state.last_prefix , programs_num , auto_state.matches);
+    auto_state.match_index = 0;
+    auto_state.initialized = 1;
+  }
+
+  if(auto_state.match_count == 0) return;
+
+  if(auto_state.match_count > 1 && auto_state.tab_state == 0) {
+    auto_state.tab_state = 1;
+    return;
+  }
+
+  int n = auto_state.match_count;
+  // print_string_array(auto_state.matches , MAX_FILES);
+  // cprintf("%d ,%d ,%s\n" , auto_state.match_count , auto_state.match_index , auto_state.matches[auto_state.match_index % n]);
+  clear_line_and_write(auto_state.matches[auto_state.match_index % n]);
+  auto_state.match_index ++;
+}
+
+void reset_auto_fill_state(){
+  auto_state.initialized = 0;
+  auto_state.tab_state = 0;
+  auto_state.match_count = 0;
+  auto_state.match_index = 0;
+}
 // Mathematical functions
 int min(int a, int b)
 {
