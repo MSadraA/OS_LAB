@@ -127,6 +127,8 @@ uchar getRainbowColor(int offset);
 
 void consputc_color(int c, uchar color);
 
+void moveCursorToPos(int pos);
+
 // <string.h> standar functions
 char* strchr(const char* str, int c);
 int strcmp(const char* str1, const char* str2);
@@ -358,7 +360,7 @@ void insert_char(char c) {
   consputc(c);
 
   input.buf[input.e++ % INPUT_BUF] = c;
-  input.end ++;
+  input.end++;
   input.buf[input.end % INPUT_BUF] = '\0';
 
   redraw_from_edit_point();
@@ -520,10 +522,13 @@ consoleintr(int (*getc)(void))
 
         insert_char(c);
 
-        if (c == '\n' || input.e == input.r + INPUT_BUF || c == C('D')) {
-          // release(&cons.lock);
-          // cprintf("[DBG] r=%d e=%d end=%d w=%d buf=%s\n", input.r, input.e, input.end, input.w, input.buf);
-          // acquire(&cons.lock);
+        // if (c == '\n' || input.e == input.r + INPUT_BUF || c == C('D')) {
+        if (c == '\n' || input.e == input.r + INPUT_BUF) {
+          
+          release(&cons.lock);
+          cprintf("[DBG] r=%d e=%d end=%d w=%d buf=%s\n", input.r, input.e, input.end, input.w, input.buf);
+          acquire(&cons.lock);
+
           input.buf[input.end++ % INPUT_BUF] = '\n';
           consputc('\n');
           input.w = input.end;
@@ -722,6 +727,7 @@ void resetClipboard()
 {
   if (!being_copied)
     straitConsole();
+
   clipboard.flag_s = 0;
   clipboard.flag = 0;
   clipboard.start_index = 0;
@@ -756,16 +762,7 @@ void highlightSelectedWords() {
   int original_pos = input.e;
 
   // move cursor to start_index loc.
-  while (input.e != clipboard.start_index) {
-    if (input.e < clipboard.start_index)
-    {
-      move_cursor(-1);
-      input.e--;
-    } else {      
-      move_cursor(1);
-      input.e++;
-    }
-  }
+  moveCursorToPos(clipboard.start_index);
 
   // Highlight start to end index
   for (int i = clipboard.start_index; i < clipboard.end_index; i++) {
@@ -774,30 +771,14 @@ void highlightSelectedWords() {
   }
 
   // return cursor to its original pos
-  while (input.e != original_pos) {
-    if (input.e > original_pos) {
-      move_cursor(-1);
-      input.e--;
-    } else {      
-      move_cursor(1);
-      input.e++;
-    }
-  }
+  moveCursorToPos(original_pos);
 }
 
 void straitConsole() {
   int original_pos = input.e;
 
   // move cursor to start_index loc.
-  while (input.e != clipboard.start_index) {
-    if (input.e > clipboard.start_index) {
-      move_cursor(-1);
-      input.e--;
-    } else {      
-      move_cursor(1);
-      input.e++;
-    }
-  }
+  moveCursorToPos(clipboard.start_index);
 
   // Restore normal color from start to end index
   for (int i = clipboard.start_index; i < clipboard.end_index; i++) {
@@ -806,30 +787,14 @@ void straitConsole() {
   }
 
   // return cursor to its original pos
-  while (input.e != original_pos) {
-    if (input.e > original_pos) {
-      move_cursor(-1);
-      input.e--;
-    } else {      
-      move_cursor(1);
-      input.e++;
-    }
-  }
+  moveCursorToPos(original_pos);
 }
 
 void gayConsole() {
   int original_pos = input.e;
 
   // move cursor to start_index loc.
-  while (input.e != clipboard.start_index) {
-    if (input.e > clipboard.start_index) {
-      move_cursor(-1);
-      input.e--;
-    } else {      
-      move_cursor(1);
-      input.e++;
-    }
-  }
+  moveCursorToPos(clipboard.start_index);
 
   // Highlight start to end index (local rainbow cycle)
   for (int i = clipboard.start_index; i < clipboard.end_index; i++) {
@@ -839,15 +804,7 @@ void gayConsole() {
   }
 
   // return cursor to its original pos
-  while (input.e != original_pos) {
-    if (input.e > original_pos) {
-      move_cursor(-1);
-      input.e--;
-    } else {      
-      move_cursor(1);
-      input.e++;
-    }
-  }
+  moveCursorToPos(original_pos);
 }
 
 uchar getRainbowColor(int offset) {
@@ -1000,4 +957,16 @@ int min(int a, int b)
 int max(int a, int b)
 {
   return (a > b)? a:b;
+}
+
+void moveCursorToPos(int pos) {
+  while (input.e != pos) {
+    if (input.e > pos) {
+      move_cursor(-1);
+      input.e--;
+    } else {      
+      move_cursor(1);
+      input.e++;
+    }
+  }
 }
