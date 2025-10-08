@@ -456,6 +456,7 @@ consoleintr(int (*getc)(void))
       
     case C('V'):
       // CTRL+V;
+      reset_auto_fill_state();
       PasteClipboard();
       break;
 
@@ -1049,7 +1050,12 @@ void handle_auto_fill(){
     auto_state.initialized = 1;
   }
 
-  if(auto_state.match_count == 0) return;
+  if((auto_state.match_count == 0)) return;
+
+  if((input.end <= input.w)){
+    reset_auto_fill_state();
+    return;
+  }
 
   if(auto_state.match_count > 1 && auto_state.tab_state == 0) {
     auto_state.tab_state = 1;
