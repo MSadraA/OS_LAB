@@ -534,9 +534,9 @@ consoleintr(int (*getc)(void))
         // if (c == '\n' || input.e == input.r + INPUT_BUF || c == C('D')) {
         if (c == '\n' || input.e == input.r + INPUT_BUF) {
           
-          release(&cons.lock);
-          cprintf("[DBG] r=%d e=%d end=%d w=%d buf=%s\n", input.r, input.e, input.end, input.w, input.buf);
-          acquire(&cons.lock);
+          // release(&cons.lock);
+          // cprintf("[DBG] r=%d e=%d end=%d w=%d buf=%s\n", input.r, input.e, input.end, input.w, input.buf);
+          // acquire(&cons.lock);
 
           input.buf[input.end++ % INPUT_BUF] = '\n';
           consputc('\n');
