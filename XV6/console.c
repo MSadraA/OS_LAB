@@ -81,8 +81,9 @@ typedef struct {
   int end_index;
   int flag;
   int valid;
+  int flag_s;
 } Clipboard;
-static Clipboard clipboard = {.start_index = 0, .end_index = 0, .flag = 0, .valid = 0};
+static Clipboard clipboard = {.start_index = 0, .end_index = 0, .flag = 0, .valid = 0, .flag_s = 0};
 int being_copied = 0;
 
 // History buffer
@@ -413,7 +414,7 @@ consoleintr(int (*getc)(void))
       break;
       
     case C('S'):
-      if (clipboard.flag == 1)
+      if (clipboard.flag_s == 1)
       {
         clipboard.end_index = input.e;
         being_copied = 0;
@@ -426,10 +427,12 @@ consoleintr(int (*getc)(void))
         // colorise the selected area
         // highlightSelectedWords();
         gayConsole();
+        clipboard.flag_s = 0;
         break;
       }
       resetClipboard();
 
+      clipboard.flag_s = 1;
       clipboard.flag = 1;
       clipboard.start_index = input.e;
       being_copied = 1;
@@ -719,6 +722,7 @@ void resetClipboard()
 {
   if (!being_copied)
     straitConsole();
+  clipboard.flag_s = 0;
   clipboard.flag = 0;
   clipboard.start_index = 0;
   clipboard.end_index = 0;
