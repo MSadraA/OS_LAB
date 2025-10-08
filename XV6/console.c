@@ -121,6 +121,7 @@ void PasteClipboard();
 void copySToClipboard();
 void highlightSelectedWords();
 void gayConsole();
+void straitConsole();
 uchar getRainbowColor(int offset);
 
 void consputc_color(int c, uchar color);
@@ -375,10 +376,10 @@ consoleintr(int (*getc)(void))
     case C('P'):  // Process listing. CTRL+P
       // procdump() locks cons.lock indirectly; invoke later
       doprocdump = 1;
-      being_copied = 0;
+      resetClipboard();
       break;
     case C('U'):  // Kill line. CTRL+U
-      being_copied = 0;
+      resetClipboard();
       while(input.e != input.w &&
             input.buf[(input.e-1) % INPUT_BUF] != '\n'){
         input.e--;
@@ -386,16 +387,16 @@ consoleintr(int (*getc)(void))
       }
       break;
     case KBD_BACKSAPCE: case '\x7f':  // Backspace
-      being_copied = 0;
+      // being_copied = 0;
       delete_char();
       break;
     case KBD_CTRL_H: // CTRL + H. History
-      being_copied = 0;
+      resetClipboard();
       showHistory();
       break;
 
     case '\t': // Tab
-        being_copied = 0;
+      resetClipboard();
         release(&cons.lock);
         char *result = find_prefix_match();
         
@@ -427,6 +428,7 @@ consoleintr(int (*getc)(void))
         gayConsole();
         break;
       }
+      resetClipboard();
 
       clipboard.flag = 1;
       clipboard.start_index = input.e;
@@ -507,6 +509,12 @@ consoleintr(int (*getc)(void))
     default:
       if(c != 0 && input.e-input.r < INPUT_BUF){
         c = (c == '\r') ? '\n' : c;
+        
+        if (c == '\n' || !being_copied)
+        {
+          resetClipboard();
+        }
+
         insert_char(c);
 
         if (c == '\n' || input.e == input.r + INPUT_BUF || c == C('D')) {
@@ -520,7 +528,7 @@ consoleintr(int (*getc)(void))
           wakeup(&input.r);
         }
 
-        if(c == '\n' && input.buf[input.r] == EXCLAMATION_CHAR)
+        if(c == '\n' && input.buf[input.r] == EXCLAMATION_CHAR )
         {
           release(&cons.lock);
           char* cmd_without_sharps = remove_between_sharps();
@@ -531,10 +539,8 @@ consoleintr(int (*getc)(void))
         }
         
         // If the command is finished, save it in history
-        if (c == '\n')
+        if (c == '\n') 
         {
-          resetClipboard();
-          
           if (input.r != input.w - 1) {
             release(&cons.lock);
             saveLastInHistory();
@@ -711,9 +717,12 @@ void clean_console()
 // Clipboard Functions
 void resetClipboard()
 {
+  if (!being_copied)
+    straitConsole();
   clipboard.flag = 0;
   clipboard.start_index = 0;
   clipboard.end_index = 0;
+  being_copied = 0;
 }
 
 void PasteClipboard()
@@ -733,9 +742,9 @@ void copySToClipboard()
   if (clipboard.flag == 1)
   {
     strSplit(clipboard.buf, input.buf, clipboard.start_index, clipboard.end_index);
-    resetClipboard();
     clipboard.valid = 1;
     being_copied = 0;
+    resetClipboard();
   }
 }
 
@@ -761,9 +770,46 @@ void highlightSelectedWords() {
   }
 
   // return cursor to its original pos
-  while (input.e > original_pos) {
-    move_cursor(-1);
-    input.e--;
+  while (input.e != original_pos) {
+    if (input.e > original_pos) {
+      move_cursor(-1);
+      input.e--;
+    } else {      
+      move_cursor(1);
+      input.e++;
+    }
+  }
+}
+
+void straitConsole() {
+  int original_pos = input.e;
+
+  // move cursor to start_index loc.
+  while (input.e != clipboard.start_index) {
+    if (input.e > clipboard.start_index) {
+      move_cursor(-1);
+      input.e--;
+    } else {      
+      move_cursor(1);
+      input.e++;
+    }
+  }
+
+  // Restore normal color from start to end index
+  for (int i = clipboard.start_index; i < clipboard.end_index; i++) {
+    consputc_color(input.buf[i % INPUT_BUF], NORMAL_COLOR);
+    input.e++;
+  }
+
+  // return cursor to its original pos
+  while (input.e != original_pos) {
+    if (input.e > original_pos) {
+      move_cursor(-1);
+      input.e--;
+    } else {      
+      move_cursor(1);
+      input.e++;
+    }
   }
 }
 
@@ -772,7 +818,7 @@ void gayConsole() {
 
   // move cursor to start_index loc.
   while (input.e != clipboard.start_index) {
-    if (input.e < clipboard.start_index) {
+    if (input.e > clipboard.start_index) {
       move_cursor(-1);
       input.e--;
     } else {      
@@ -789,9 +835,14 @@ void gayConsole() {
   }
 
   // return cursor to its original pos
-  while (input.e > original_pos) {
-    move_cursor(-1);
-    input.e--;
+  while (input.e != original_pos) {
+    if (input.e > original_pos) {
+      move_cursor(-1);
+      input.e--;
+    } else {      
+      move_cursor(1);
+      input.e++;
+    }
   }
 }
 
