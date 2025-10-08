@@ -34,6 +34,23 @@ const char *KEYWORDS[KEYWORDS_CNT] = {"void", "int", "char", "if", "for", "while
 const char *DELIMITER = " ";
 const char EXCLAMATION_CHAR = '!';
 
+// Program listing
+#define MAX_FILES 128
+#define MAX_NAME  32
+static int programs_num = 0;
+char programs[MAX_FILES][MAX_NAME];
+
+struct autocomplete_state {
+  int initilized;
+  int tab_state;
+  char last_prefix[MAX_NAME];
+  char matches[MAX_FILES][MAX_NAME];
+  int match_count;
+  int match_index;
+};
+
+static struct autocomplete_state auto_state = {0};
+
 // Color codes
 #define BLACK 0x0
 #define BLUE 0x1
@@ -349,6 +366,7 @@ consoleintr(int (*getc)(void))
       while(input.e != input.w &&
             input.buf[(input.e-1) % INPUT_BUF] != '\n'){
         input.e--;
+        input.end --; // have to check
         consputc(BACKSPACE);
       }
       break;
@@ -364,19 +382,9 @@ consoleintr(int (*getc)(void))
     case '\t': // Tab
         being_copied = 0;
         release(&cons.lock);
-        char *result = find_prefix_match();
-        
-        // Some clear function can go here
-        if (result) {
-          for (int i = input.e; i > input.w; i--) {
-              consputc(BACKSPACE);
-          }
-          strncpy(input.buf + input.w, result, INPUT_BUF - input.w);
-          input.e = input.w + strlen(result);
-          cprintf("%s", result);
-      }
-      acquire(&cons.lock);
-      break;
+        handle_auto_fill();
+        acquire(&cons.lock);
+        break;
       
       case C('C'):
       // CTRL+C
@@ -585,6 +593,41 @@ consolewrite(struct inode *ip, char *buf, int n)
   return n;
 }
 
+int
+list_programs(void)
+{
+  struct inode *dp;
+  struct dirent de;
+  int offset = 0;
+  int count = 0;
+
+  // باز کردن دایرکتوری فعلی (در کرنل: با namei)
+  dp = namei(".");
+  if (dp == 0) {
+    cprintf("auto: cannot open current directory\n");
+    return 0;
+  }
+
+  ilock(dp);
+
+  while (readi(dp, (char*)&de, offset, sizeof(de)) == sizeof(de)) {
+    offset += sizeof(de);
+
+    if (de.inum == 0)
+      continue;
+
+    if (count < MAX_FILES) {
+      safestrcpy(programs[count], de.name, MAX_NAME);
+      count++;
+    }
+  }
+
+  iunlockput(dp); // آزاد کردن inode
+  return count;
+}
+
+
+
 void
 consoleinit(void)
 {
@@ -653,26 +696,6 @@ void strSplit(char *dst, char *src, int start, int end)
     dst[i++] = src[j];
   }
   dst[i] = '\0';
-}
-
-char* find_prefix_match() {
-  char temp[INPUT_BUF];
-  strSplit(temp, input.buf, input.w, input.e); 
-  int temp_len = strlen(temp);
-
-  // cprintf("Input prefix: %s\n", temp);
-
-  for (int i = cmd_history.size - 1; i >= 0; i--) {
-    char* candidate = cmd_history.buf[i];
-
-    // cprintf("Checking candidate: %s\n", candidate);
-
-    if (strncmp(temp, candidate, temp_len) == 0) {
-      // cprintf("Match found: %s\n", candidate);
-      return candidate;
-    }
-  }
-  return NULL;
 }
 
 void clean_console()
@@ -822,4 +845,38 @@ void print_colored_keywords(char *input) { //input : !if x == 3 return 0
       consputc(' ');
       token = strtok(NULL, DELIMITER);
   }
+}
+
+int find_prefix_matches(char *prefix, int n, char matches[MAX_FILES][MAX_NAME]) {
+  int count = 0;
+  int len = strlen(prefix);
+
+  for (int i = 0; i < n; i++) {
+    if (strncmp(programs[i], prefix, len) == 0) {
+      strncpy(matches[count], programs[i], MAX_NAME);
+      matches[count][MAX_NAME - 1] = '\0';
+      count++;
+    }
+  }
+
+  return count;
+}
+
+void handle_auto_fill(){
+  programs_num = list_programs();
+  if(auto_state.initilized == 0){
+    int j = 0;
+    for(int i = input.w ; i < input.end ; i++ , j++)
+      auto_state.last_prefix[j] = input.buf[i];
+    auto_state.last_prefix[j] = '\0';
+    auto_state.match_count = find_prefix_matches(auto_state.last_prefix , programs_num , auto_state.matches);
+    auto_state.match_index = 0;
+    auto_state.initilized = 1;
+  }
+
+  if((auto_state.match_count == 0) || 
+  (auto_state.match_count > 1 && auto_state.tab_state == 0)) return;
+  
+  // input.e = input.end;
+
 }
