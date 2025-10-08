@@ -49,3 +49,5 @@ SYSCALL(init_rw_lock)
 SYSCALL(get_rw_pattern)
 SYSCALL(critical_section)
 
+SYSCALL(list_programs)
+

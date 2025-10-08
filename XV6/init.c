@@ -10,6 +10,7 @@ char *argv[] = { "sh", 0 };
 int
 main(void)
 {
+  list_programs();
   int pid, wpid;
 
   if(open("console", O_RDWR) < 0){

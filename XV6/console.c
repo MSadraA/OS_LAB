@@ -36,12 +36,12 @@ const char EXCLAMATION_CHAR = '!';
 
 // Program listing
 #define MAX_FILES 128
-#define MAX_NAME  32
+#define MAX_NAME DIRSIZ
 static int programs_num = 0;
 char programs[MAX_FILES][MAX_NAME];
 
 struct autocomplete_state {
-  int initilized;
+  int initialized;
   int tab_state;
   char last_prefix[MAX_NAME];
   char matches[MAX_FILES][MAX_NAME];
@@ -49,7 +49,7 @@ struct autocomplete_state {
   int match_index;
 };
 
-static struct autocomplete_state auto_state = {0};
+static struct autocomplete_state auto_state;
 
 // Color codes
 #define BLACK 0x0
@@ -102,7 +102,7 @@ static HBuffer cmd_history = {.index = 0 , .size = 0};
 #define NULL ((char*)0)
 
 // Additional functions
-char* find_prefix_match();
+int find_prefix_matches(char *prefix, int n, char matches[MAX_FILES][MAX_NAME]);
 void clean_console(); //todo
 void saveLastInHistory();
 void saveLastInCmdHistory();
@@ -377,6 +377,7 @@ consoleintr(int (*getc)(void))
     case KBD_BACKSAPCE: case '\x7f':  // Backspace
       being_copied = 0;
       delete_char();
+      reset_auto_fill_state();
       break;
     case KBD_CTRL_H: // CTRL + H. History
       being_copied = 0;
@@ -496,6 +497,8 @@ consoleintr(int (*getc)(void))
         c = (c == '\r') ? '\n' : c;
         insert_char(c);
 
+        reset_auto_fill_state();
+
         if (c == '\n' || input.e == input.r + INPUT_BUF || c == C('D')) {
           // release(&cons.lock);
           // cprintf("[DBG] r=%d e=%d end=%d w=%d buf=%s\n", input.r, input.e, input.end, input.w, input.buf);
@@ -597,41 +600,6 @@ consolewrite(struct inode *ip, char *buf, int n)
   return n;
 }
 
-int
-list_programs(void)
-{
-  struct inode *dp;
-  struct dirent de;
-  int offset = 0;
-  int count = 0;
-
-  // باز کردن دایرکتوری فعلی (در کرنل: با namei)
-  dp = namei(".");
-  if (dp == 0) {
-    cprintf("auto: cannot open current directory\n");
-    return 0;
-  }
-
-  ilock(dp);
-
-  while (readi(dp, (char*)&de, offset, sizeof(de)) == sizeof(de)) {
-    offset += sizeof(de);
-
-    if (de.inum == 0)
-      continue;
-
-    if (count < MAX_FILES) {
-      safestrcpy(programs[count], de.name, MAX_NAME);
-      count++;
-    }
-  }
-
-  iunlockput(dp); // آزاد کردن inode
-  return count;
-}
-
-
-
 void
 consoleinit(void)
 {
@@ -642,6 +610,7 @@ consoleinit(void)
   cons.locking = 1;
 
   ioapicenable(IRQ_KBD, 0);
+  // programs_num = list_programs();
 }
 
 void saveLastInHistory()
@@ -866,21 +835,118 @@ int find_prefix_matches(char *prefix, int n, char matches[MAX_FILES][MAX_NAME]) 
   return count;
 }
 
+
+int list_programs_safe(void) // i don't know how it works 
+{
+  struct inode *dp;
+  struct dirent de;
+  uint off;
+  int count = 0;
+
+  begin_op();
+
+  dp = namei("/");
+  if (dp == 0) {
+    cprintf("auto: cannot open root directory\n");
+    end_op();
+    return -1;
+  }
+
+  ilock(dp);
+
+  for (off = 0; off + sizeof(de) <= dp->size; off += sizeof(de)) {
+    if (readi(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
+      break;
+    if (de.inum == 0)
+      continue;
+    if (count >= MAX_FILES)
+      break;
+
+    char namebuf[DIRSIZ + 1];
+    memmove(namebuf, de.name, DIRSIZ);
+    namebuf[DIRSIZ] = 0;
+
+    safestrcpy(programs[count], namebuf, MAX_NAME);
+    programs[count][MAX_NAME - 1] = '\0';
+    count++;
+  }
+
+  iunlockput(dp);
+
+  end_op();
+
+  programs_num = count;
+
+  // some built-in commands
+  safestrcpy(programs[programs_num++], "cd", MAX_NAME);
+  safestrcpy(programs[programs_num++], "exit", MAX_NAME);
+  safestrcpy(programs[programs_num++], "help", MAX_NAME);
+  safestrcpy(programs[programs_num++], "history", MAX_NAME);
+
+  return count;
+}
+
+void
+print_string_array(char arr[][MAX_NAME], int count)
+{
+  cprintf("\n-- String Array (%d entries) --\n", count);
+
+  if (count == 0) {
+    cprintf("(empty)\n");
+    return;
+  }
+
+  for (int i = 0; i < count; i++) {
+    if (arr[i][0] == '\0')
+      continue; // skip empty slots
+    cprintf("%d: %s\n", i, arr[i]);
+  }
+  cprintf("-- End of Array --\n");
+}
+
+
+void clear_line_and_write(const char *cmd){
+  
+  input.e = input.end;
+  while(input.e > input.w)
+    delete_char();
+
+  for (int i = 0; cmd[i] && i < INPUT_BUF-1; i++) {
+    consputc(cmd[i]);
+    input.buf[input.e % INPUT_BUF] = cmd[i];
+    input.e ++;
+    input.end ++;
+  }
+}
+
 void handle_auto_fill(){
-  programs_num = list_programs();
-  if(auto_state.initilized == 0){
+  if(auto_state.initialized == 0){
     int j = 0;
     for(int i = input.w ; i < input.end ; i++ , j++)
       auto_state.last_prefix[j] = input.buf[i];
     auto_state.last_prefix[j] = '\0';
     auto_state.match_count = find_prefix_matches(auto_state.last_prefix , programs_num , auto_state.matches);
     auto_state.match_index = 0;
-    auto_state.initilized = 1;
+    auto_state.initialized = 1;
   }
 
-  if((auto_state.match_count == 0) || 
-  (auto_state.match_count > 1 && auto_state.tab_state == 0)) return;
-  
-  // input.e = input.end;
+  if(auto_state.match_count == 0) return;
 
+  if(auto_state.match_count > 1 && auto_state.tab_state == 0) {
+    auto_state.tab_state = 1;
+    return;
+  }
+
+  int n = auto_state.match_count;
+  // print_string_array(auto_state.matches , MAX_FILES);
+  // cprintf("%d ,%d ,%s\n" , auto_state.match_count , auto_state.match_index , auto_state.matches[auto_state.match_index % n]);
+  clear_line_and_write(auto_state.matches[auto_state.match_index % n]);
+  auto_state.match_index ++;
+}
+
+void reset_auto_fill_state(){
+  auto_state.initialized = 0;
+  auto_state.tab_state = 0;
+  auto_state.match_count = 0;
+  auto_state.match_index = 0;
 }
