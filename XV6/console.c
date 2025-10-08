@@ -84,6 +84,10 @@ static HBuffer cmd_history = {.index = 0 , .size = 0};
 // Null declaration
 #define NULL ((char*)0)
 
+// Mathematical functions
+int min(int a, int b);
+int max(int a, int b);
+
 // Additional functions
 char* find_prefix_match();
 void clean_console(); //todo
@@ -91,10 +95,14 @@ void saveLastInHistory();
 void saveLastInCmdHistory();
 void showHistory();
 void strSplit(char *dst, char *src, int start, int end);
-void resetClipboard();
 void cprintf_color(char *str, uchar color);
 char* remove_between_sharps();
 void print_colored_keywords(char *input) ;
+
+// Clipboard Functions
+void resetClipboard();
+void PasteClipboard();
+void copySToClipboard();
 
 // <string.h> standar functions
 char* strchr(const char* str, int c);
@@ -382,38 +390,33 @@ consoleintr(int (*getc)(void))
       acquire(&cons.lock);
       break;
       
-      case C('C'):
-      // CTRL+C
+    case C('S'):
       if (clipboard.flag == 1)
       {
-        strSplit(clipboard.buf, input.buf, clipboard.end_index, clipboard.start_index);
-        resetClipboard();
-        clipboard.valid = 1;
+        clipboard.end_index = input.e;
         being_copied = 0;
         
-        break;
+        int temp = clipboard.start_index;
+        clipboard.start_index = min(clipboard.start_index, clipboard.end_index);
+        clipboard.end_index = max(temp, clipboard.end_index);
+        
+        // todo
+        // colorise the selected area
       }
-      
+
       clipboard.flag = 1;
-      clipboard.start_index = clipboard.end_index = input.e;
+      clipboard.start_index = input.e;
       being_copied = 1;
+      break;
+
+      case C('C'):
+      // CTRL+C
+      copySToClipboard();
       break;
       
     case C('V'):
-      being_copied = 0;
-
       // CTRL+V;
-      release(&cons.lock); 
-      if (clipboard.valid == 1)
-      {
-        cprintf("%s", clipboard.buf);
-        for (int i = 0; i < strlen(clipboard.buf); i++)
-        {
-          input.buf[input.e++ % INPUT_BUF] = clipboard.buf[i];
-        }
-        resetClipboard();
-      }
-      acquire(&cons.lock);
+      PasteClipboard();
       break;
 
     case KBD_KEY_LEFT:
@@ -422,13 +425,7 @@ consoleintr(int (*getc)(void))
       {
         move_cursor(-1);
         input.e--;
-      }
-      if (input.r != clipboard.end_index)
-      {
-        clipboard.end_index--;
-      }
-      being_copied = 1;
-    
+      }    
       break;
 
     case KBD_KEY_RIGHT:
@@ -693,6 +690,29 @@ void resetClipboard()
   clipboard.end_index = 0;
 }
 
+void PasteClipboard()
+{      
+  if (clipboard.valid == 1)
+  {
+    for (int i = 0; i < strlen(clipboard.buf); i++)
+    {
+      insert_char(clipboard.buf[i]);
+    }
+  }
+  // resetClipboard();
+}
+
+void copySToClipboard()
+{
+  if (clipboard.flag == 1)
+  {
+    strSplit(clipboard.buf, input.buf, clipboard.start_index, clipboard.end_index);
+    resetClipboard();
+    clipboard.valid = 1;
+    being_copied = 0;
+  }
+}
+
 // Color functions
 void consputc_color(int c, uchar color) {
   int pos;
@@ -826,4 +846,14 @@ void print_colored_keywords(char *input) { //input : !if x == 3 return 0
       consputc(' ');
       token = strtok(NULL, DELIMITER);
   }
+}
+
+// Mathematical functions
+int min(int a, int b)
+{
+  return (a > b)? b:a;
+}
+int max(int a, int b)
+{
+  return (a > b)? a:b;
 }
