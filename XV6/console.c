@@ -198,7 +198,7 @@ printint(int xx, int base, int sign)
   while(--i >= 0)
     consputc(buf[i]);
 }
-//PAGEBREAK: 50
+//PAGEBREAK: 50strcmp
 
 // Print to the console. only understands %d, %x, %p, %s.
 void
@@ -428,6 +428,7 @@ consoleintr(int (*getc)(void))
       lastInput.clear(&lastInput);
       resetClipboard();
       cleanConsole();
+      reset_auto_fill_state();
       break;
     case KBD_BACKSAPCE: case '\x7f':  // Backspace
       // being_copied = 0;
@@ -561,6 +562,7 @@ consoleintr(int (*getc)(void))
         }
         
         insert_char(c);
+        reset_auto_fill_state();
         
         // if (c == '\n' || input.e == input.r + INPUT_BUF || c == C('D')) {
         if (c == '\n' || input.e == input.r + INPUT_BUF) {
@@ -1043,34 +1045,26 @@ int list_programs_safe(void) // i don't know how it works
 void
 print_string_array(char arr[][MAX_NAME], int count)
 {
-  cprintf("\n-- String Array (%d entries) --\n", count);
+  cprintf("\n-----------------------------\n", count);
 
   if (count == 0) {
-    cprintf("(empty)\n");
     return;
   }
 
   for (int i = 0; i < count; i++) {
     if (arr[i][0] == '\0')
-      continue; // skip empty slots
-    cprintf("%d: %s\n", i, arr[i]);
+      continue;
+    cprintf("   %s\n", arr[i]);
   }
-  cprintf("-- End of Array --\n");
+  cprintf("-----------------------------\n");
 }
 
 
 void clear_line_and_write(const char *cmd){
   cleanConsole();
-  // input.e = input.end;
-  // while(input.e > input.w)
-  //   delete_char();
 
   for (int i = 0; cmd[i] && i < INPUT_BUF-1; i++) {
     insert_char(cmd[i]);
-    // consputc(cmd[i]);
-    // input.buf[input.e % INPUT_BUF] = cmd[i];
-    // input.e ++;
-    // input.end ++;
   }
 }
 
@@ -1098,10 +1092,19 @@ void handle_auto_fill(){
   }
 
   int n = auto_state.match_count;
-  // print_string_array(auto_state.matches , MAX_FILES);
-  // cprintf("%d ,%d ,%s\n" , auto_state.match_count , auto_state.match_index , auto_state.matches[auto_state.match_index % n]);
-  clear_line_and_write(auto_state.matches[auto_state.match_index % n]);
-  auto_state.match_index ++;
+
+  if(n == 1){
+    clear_line_and_write(auto_state.matches[0]);
+  }
+  else{
+    cleanConsole();
+    print_string_array(auto_state.matches , auto_state.match_count);
+    cprintf("$ ");
+    clear_line_and_write(auto_state.last_prefix);
+  }
+  // Second option:
+  // clear_line_and_write(auto_state.matches[auto_state.match_index % n]);
+  // auto_state.match_index ++;
 }
 
 void reset_auto_fill_state(){
@@ -1145,4 +1148,20 @@ void undoLastInput() {
   if (original_pos > input.end)
     original_pos = input.end;
   moveCursorToPos(original_pos);
+}
+
+int get_cursor_pos() {
+  outb(CRTPORT, 14);
+  int pos = inb(CRTPORT + 1) << 8;
+  outb(CRTPORT, 15);
+  pos |= inb(CRTPORT + 1);
+  return pos;
+}
+
+
+void set_cursor_pos(int pos) {
+  outb(CRTPORT, 14);
+  outb(CRTPORT + 1, pos >> 8);
+  outb(CRTPORT, 15);
+  outb(CRTPORT + 1, pos);
 }
