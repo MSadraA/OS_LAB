@@ -1093,6 +1093,7 @@ void handle_auto_fill(){
 
   int n = auto_state.match_count;
 
+  // first option:
   if(n == 1){
     clear_line_and_write(auto_state.matches[0]);
   }

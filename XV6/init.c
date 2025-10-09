@@ -23,6 +23,7 @@ main(void)
   // team_members
   printf(1, "o- SeyedAlirezaMirshafiee\n");
   printf(1, "o- SadraAbbasi\n");
+  printf(1, "o- MohammadTaghizadeh\n");
 
   for(;;){
     printf(1, "init: starting sh\n");
