@@ -111,9 +111,31 @@ typedef struct {
   int index;
   int size;
 } HBuffer;
-
 static HBuffer history = {.index = 0, .size = 0};
 static HBuffer cmd_history = {.index = 0 , .size = 0};
+
+// Stack
+typedef struct {
+  int stack[INPUT_BUF];
+  int size;
+  void (*clear)(struct Stack *self);
+  void (*push)(struct Stack *self, int val);
+  int  (*pop)(struct Stack *self);
+} Stack;
+void Stack_clear(Stack *self) {
+  self->size = 0;
+  memset(self->stack, 0, sizeof(self->stack));
+}
+void Stack_push(Stack *self, int val) {
+  if (self->size < INPUT_BUF)
+    self->stack[self->size++] = val;
+}
+int Stack_pop(Stack *self) {
+  if (self->size == 0) return -1;
+  return self->stack[--self->size];
+}
+static Stack lastInput = { .size = 0, .clear = Stack_clear, .push = Stack_push, .pop = Stack_pop };
+
 
 // Null declaration
 #define NULL ((char*)0)
@@ -124,7 +146,7 @@ int max(int a, int b);
 
 // Additional functions
 int find_prefix_matches(char *prefix, int n, char matches[MAX_FILES][MAX_NAME]);
-void clean_console(); //todo
+void cleanConsole();
 void saveLastInHistory();
 void saveLastInCmdHistory();
 void showHistory();
@@ -132,6 +154,8 @@ void strSplit(char *dst, char *src, int start, int end);
 void cprintf_color(char *str, uchar color);
 char* remove_between_sharps();
 void print_colored_keywords(char *input) ;
+void consputc_color(int c, uchar color);
+void moveCursorToPos(int pos);
 
 // Clipboard Functions
 void resetClipboard();
@@ -142,9 +166,7 @@ void gayConsole();
 void straitConsole();
 uchar getRainbowColor(int offset);
 
-void consputc_color(int c, uchar color);
-
-void moveCursorToPos(int pos);
+void undoLastInput();
 
 // <string.h> standar functions
 char* strchr(const char* str, int c);
@@ -371,15 +393,19 @@ void delete_char() {
 void insert_char(char c) {
   if(c == '\n') return;
   
+  // updateLastInput
+  lastInput.push(&lastInput, input.e);
+  
   for (int i = input.end ; i > input.e; i--)
     input.buf[i] = input.buf[i - 1];
-
+  
   consputc(c);
-
+  
   input.buf[input.e++ % INPUT_BUF] = c;
   input.end++;
   input.buf[input.end % INPUT_BUF] = '\0';
-
+  
+  
   redraw_from_edit_point();
 }
 
@@ -399,16 +425,13 @@ consoleintr(int (*getc)(void))
       resetClipboard();
       break;
     case C('U'):  // Kill line. CTRL+U
+      lastInput.clear(&lastInput);
       resetClipboard();
-      while(input.e != input.w &&
-            input.buf[(input.e-1) % INPUT_BUF] != '\n'){
-        input.e--;
-        input.end --; // have to check
-        consputc(BACKSPACE);
-      }
+      cleanConsole();
       break;
     case KBD_BACKSAPCE: case '\x7f':  // Backspace
       // being_copied = 0;
+      lastInput.clear(&lastInput);
       delete_char();
       reset_auto_fill_state();
       break;
@@ -418,11 +441,12 @@ consoleintr(int (*getc)(void))
       break;
 
     case '\t': // Tab
+      lastInput.clear(&lastInput);
       resetClipboard();
-        release(&cons.lock);
-        handle_auto_fill();
-        acquire(&cons.lock);
-        break;
+      release(&cons.lock);
+      handle_auto_fill();
+      acquire(&cons.lock);
+      break;
       
     case C('S'):
       if (clipboard.flag_s == 1)
@@ -449,7 +473,7 @@ consoleintr(int (*getc)(void))
       being_copied = 1;
       break;
 
-      case C('C'):
+    case C('C'):
       // CTRL+C
       copySToClipboard();
       break;
@@ -458,6 +482,12 @@ consoleintr(int (*getc)(void))
       // CTRL+V;
       reset_auto_fill_state();
       PasteClipboard();
+      break;
+
+    case C('Z'):
+      // CTRL+Z
+      reset_auto_fill_state();
+      undoLastInput();
       break;
 
     case KBD_KEY_LEFT:
@@ -529,11 +559,13 @@ consoleintr(int (*getc)(void))
         {
           resetClipboard();
         }
-
+        
         insert_char(c);
-
+        
         // if (c == '\n' || input.e == input.r + INPUT_BUF || c == C('D')) {
         if (c == '\n' || input.e == input.r + INPUT_BUF) {
+
+          lastInput.clear(&lastInput);
           
           // release(&cons.lock);
           // cprintf("[DBG] r=%d e=%d end=%d w=%d buf=%s\n", input.r, input.e, input.end, input.w, input.buf);
@@ -707,9 +739,11 @@ void strSplit(char *dst, char *src, int start, int end)
   dst[i] = '\0';
 }
 
-void clean_console()
+void cleanConsole()
 {
-  //todo
+  moveCursorToPos(input.end);
+  while (input.end != input.w)
+    delete_char();
 }
 
 
@@ -1026,16 +1060,17 @@ print_string_array(char arr[][MAX_NAME], int count)
 
 
 void clear_line_and_write(const char *cmd){
-  moveCursorToPos(input.end);
-  input.e = input.end;
-  while(input.e > input.w)
-    delete_char();
+  cleanConsole();
+  // input.e = input.end;
+  // while(input.e > input.w)
+  //   delete_char();
 
   for (int i = 0; cmd[i] && i < INPUT_BUF-1; i++) {
-    consputc(cmd[i]);
-    input.buf[input.e % INPUT_BUF] = cmd[i];
-    input.e ++;
-    input.end ++;
+    insert_char(cmd[i]);
+    // consputc(cmd[i]);
+    // input.buf[input.e % INPUT_BUF] = cmd[i];
+    // input.e ++;
+    // input.end ++;
   }
 }
 
@@ -1095,4 +1130,19 @@ void moveCursorToPos(int pos) {
       input.e++;
     }
   }
+}
+
+void undoLastInput() {
+  if (lastInput.size <= 0)
+    return;
+
+  int original_pos = input.e;
+
+  moveCursorToPos(lastInput.pop(&lastInput) + 1);
+  
+  delete_char();
+
+  if (original_pos > input.end)
+    original_pos = input.end;
+  moveCursorToPos(original_pos);
 }
