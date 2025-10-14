@@ -444,9 +444,20 @@ consoleintr(int (*getc)(void))
     case '\t': // Tab
       lastInput.clear(&lastInput);
       resetClipboard();
-      release(&cons.lock);
-      handle_auto_fill();
-      acquire(&cons.lock);
+      // release(&cons.lock);
+      // handle_auto_fill();
+      // acquire(&cons.lock);
+      if (input.e - input.r < INPUT_BUF) {
+        input.buf[input.e % INPUT_BUF] = '\t';
+        input.e++;
+        input.end = input.e;
+      }
+      if (input.e - input.r < INPUT_BUF) {
+        input.buf[input.e % INPUT_BUF] = '\n';
+        input.e++;
+        input.end = input.e;
+      }
+      wakeup(&input.r);
       break;
       
     case C('S'):
@@ -992,7 +1003,7 @@ int find_prefix_matches(char *prefix, int n, char matches[MAX_FILES][MAX_NAME]) 
 }
 
 
-int list_programs_safe(void) // i don't know how it works 
+int list_programs_safe(void)
 {
   struct inode *dp;
   struct dirent de;

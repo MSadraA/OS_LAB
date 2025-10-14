@@ -4,6 +4,7 @@
 #include "user.h"
 #include "fcntl.h"
 #include "stat.h"
+#include "fs.h"
 
 // Exclemation command
 #define EXCLAMATION_CHAR '!'
@@ -16,7 +17,15 @@
 #define LIST  4
 #define BACK  5
 #define EXCLAMATION 6
+#define TAB 7
 #define MAXARGS 10
+
+// Program listing
+#define MAX_FILES 128
+#define MAX_NAME DIRSIZ
+int get_user_programs(char names[MAX_FILES][MAX_NAME]);
+void print_string_array(char arr[MAX_FILES][MAX_NAME], int count);
+int find_matches(char *prefix, char names[MAX_FILES][MAX_NAME],char matches[MAX_FILES][MAX_NAME], int count);
 
 
 struct cmd {
@@ -61,6 +70,13 @@ struct exclamation{
   char *cmd;
 };
 
+struct tab
+{
+  int type;
+  char *cmd; 
+};
+
+
 
 int fork1(void);  // Fork but panics on failure.
 void panic(char*);
@@ -88,6 +104,20 @@ runcmd(struct cmd *cmd)
   
   case EXCLAMATION:
     break;
+
+  case TAB:
+    printf(1 , "Test");
+    struct tab *tcmd = (struct tab*)cmd;
+    char programs[MAX_FILES][MAX_NAME];
+    char matches[MAX_FILES][MAX_NAME];
+    
+    int n = get_user_programs(programs);
+    int m = find_matches(tcmd->cmd, programs, matches, n);
+
+    print_string_array(matches, m);
+    break;
+
+    
   
   case EXEC:
     ecmd = (struct execcmd*)cmd;
@@ -347,6 +377,16 @@ parsecmd(char *s)
 {
   char *es;
   struct cmd *cmd;
+  
+  int len = strlen(s);
+  if (len > 0 && s[len - 1] == '\t') {
+    struct tab *tcmd = malloc(sizeof(*tcmd));
+    memset(tcmd, 0, sizeof(*tcmd));
+    tcmd->type = TAB;
+    s[len - 1] = '\0';
+    tcmd->cmd = s;
+    return (struct cmd*)tcmd;
+  }
 
   if(s[0] == EXCLAMATION_CHAR)
   {
@@ -520,3 +560,114 @@ nulterminate(struct cmd *cmd)
 }
 
 
+int
+get_user_programs(char names[MAX_FILES][MAX_NAME])
+{
+  char buf[512], *p;
+  int fd;
+  struct dirent de;
+  struct stat st;
+  int count = 0;
+
+  if((fd = open(".", 0)) < 0){
+    printf(2, "list_programs: cannot open .\n");
+    return -1;
+  }
+
+  if(fstat(fd, &st) < 0){
+    printf(2, "list_programs: cannot stat .\n");
+    close(fd);
+    return -1;
+  }
+
+  if(st.type != T_DIR){
+    printf(2, "list_programs: not a directory\n");
+    close(fd);
+    return -1;
+  }
+
+  while(read(fd, &de, sizeof(de)) == sizeof(de)){
+    if(de.inum == 0)
+      continue;
+
+    strcpy(buf, "./");
+    p = buf + strlen(buf);
+    memmove(p, de.name, DIRSIZ);
+    p[DIRSIZ] = 0;
+
+    if(stat(buf, &st) < 0)
+      continue;
+
+    if(st.type == T_FILE){
+      if(count < MAX_FILES){
+        memmove(names[count], de.name, DIRSIZ);
+        names[count][DIRSIZ] = 0;
+        count++;
+      }
+    }
+  }
+
+  close(fd);
+  return count;
+}
+
+int
+strncmp(const char *p, const char *q, uint n)
+{
+  while(n > 0 && *p && *p == *q)
+    n--, p++, q++;
+  if(n == 0)
+    return 0;
+  return (uchar)*p - (uchar)*q;
+}
+
+char*
+safestrcpy(char *s, const char *t, int n)
+{
+  char *os;
+
+  os = s;
+  if(n <= 0)
+    return os;
+  while(--n > 0 && (*s++ = *t++) != 0)
+    ;
+  *s = 0;
+  return os;
+}
+
+
+int
+find_matches(char *prefix, char names[MAX_FILES][MAX_NAME],
+             char matches[MAX_FILES][MAX_NAME], int count)
+{
+  int prefix_len = strlen(prefix);
+  int mcount = 0;
+
+  for (int i = 0; i < count; i++) {
+    if (strncmp(prefix, names[i], prefix_len) == 0) {
+      if (mcount < MAX_FILES) {
+        safestrcpy(matches[mcount], names[i], MAX_NAME);
+        mcount++;
+      }
+    }
+  }
+
+  return mcount; // تعداد مچ‌های پیدا شده
+}
+
+void
+print_string_array(char arr[MAX_FILES][MAX_NAME], int count)
+{
+  if (count <= 0) {
+    printf(1, "(no matches)\n");
+    return;
+  }
+
+  printf(1, "---- Matches ----\n");
+  for (int i = 0; i < count; i++) {
+    if (arr[i][0] == 0)
+      continue; // skip empty strings
+    printf(1, "  %s\n", arr[i]);
+  }
+  printf(1, "-----------------\n");
+}
