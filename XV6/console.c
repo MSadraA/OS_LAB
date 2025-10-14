@@ -114,6 +114,8 @@ typedef struct {
 static HBuffer history = {.index = 0, .size = 0};
 static HBuffer cmd_history = {.index = 0 , .size = 0};
 
+#define INTERNAL_FLAG_CHAR  0x1F 
+
 // Stack
 typedef struct {
   int stack[INPUT_BUF];
@@ -134,8 +136,8 @@ int Stack_pop(Stack *self) {
   if (self->size == 0) return -1;
   return self->stack[--self->size];
 }
-static Stack lastInput = { .size = 0, .clear = Stack_clear, .push = Stack_push, .pop = Stack_pop };
-
+static Stack lastInputIndex = { .size = 0, .clear = Stack_clear, .push = Stack_push, .pop = Stack_pop };
+static Stack lastInputValue = { .size = 0, .clear = Stack_clear, .push = Stack_push, .pop = Stack_pop };
 
 // Null declaration
 #define NULL ((char*)0)
@@ -145,6 +147,8 @@ int min(int a, int b);
 int max(int a, int b);
 
 // Additional functions
+void executeAtCursorPos(int target_pos, void (*action)(void));
+
 int find_prefix_matches(char *prefix, int n, char matches[MAX_FILES][MAX_NAME]);
 void cleanConsole();
 void saveLastInHistory();
@@ -165,8 +169,11 @@ void highlightSelectedWords();
 void gayConsole();
 void straitConsole();
 uchar getRainbowColor(int offset);
-
 void undoLastInput();
+
+void highlight_range(void);
+void rainbow_range(void);
+void normalize_range(void);
 
 // <string.h> standar functions
 char* strchr(const char* str, int c);
@@ -390,11 +397,14 @@ void delete_char() {
   }
 }
 
-void insert_char(char c) {
+// default flag = 1
+void insert_char(char c, int flag) {
   if(c == '\n') return;
-  
-  // updateLastInput
-  lastInput.push(&lastInput, input.e);
+
+  if (flag) {
+    lastInputIndex.push(&lastInputIndex, input.e);
+    lastInputValue.push(&lastInputValue, INTERNAL_FLAG_CHAR);
+  }
   
   for (int i = input.end ; i > input.e; i--)
     input.buf[i] = input.buf[i - 1];
@@ -425,14 +435,19 @@ consoleintr(int (*getc)(void))
       resetClipboard();
       break;
     case C('U'):  // Kill line. CTRL+U
-      lastInput.clear(&lastInput);
+      lastInputIndex.clear(&lastInputIndex);
+      lastInputValue.clear(&lastInputValue);
       resetClipboard();
       cleanConsole();
       reset_auto_fill_state();
       break;
     case KBD_BACKSAPCE: case '\x7f':  // Backspace
       // being_copied = 0;
-      lastInput.clear(&lastInput);
+      // lastInput.clear(&lastInput);
+
+      lastInputIndex.push(&lastInputIndex, input.e);
+      lastInputValue.push(&lastInputValue, input.buf[(input.e - 1 + INPUT_BUF) % INPUT_BUF]);
+
       delete_char();
       reset_auto_fill_state();
       break;
@@ -442,7 +457,10 @@ consoleintr(int (*getc)(void))
       break;
 
     case '\t': // Tab
-      lastInput.clear(&lastInput);
+      
+
+      lastInputIndex.clear(&lastInputIndex);
+      lastInputValue.clear(&lastInputValue);
       resetClipboard();
       // release(&cons.lock);
       // handle_auto_fill();
@@ -572,13 +590,14 @@ consoleintr(int (*getc)(void))
           resetClipboard();
         }
         
-        insert_char(c);
+        insert_char(c, 1);
         reset_auto_fill_state();
         
         // if (c == '\n' || input.e == input.r + INPUT_BUF || c == C('D')) {
         if (c == '\n' || input.e == input.r + INPUT_BUF) {
 
-          lastInput.clear(&lastInput);
+          lastInputIndex.clear(&lastInputIndex);
+          lastInputValue.clear(&lastInputValue);
           
           // release(&cons.lock);
           // cprintf("[DBG] r=%d e=%d end=%d w=%d buf=%s\n", input.r, input.e, input.end, input.w, input.buf);
@@ -779,7 +798,7 @@ void PasteClipboard()
   {
     for (int i = 0; i < strlen(clipboard.buf); i++)
     {
-      insert_char(clipboard.buf[i]);
+      insert_char(clipboard.buf[i], 1);
     }
   }
   // resetClipboard();
@@ -797,52 +816,57 @@ void copySToClipboard()
 }
 
 void highlightSelectedWords() {
-  int original_pos = input.e;
+  executeAtCursorPos(clipboard.start_index, highlight_range); 
 
-  // move cursor to start_index loc.
-  moveCursorToPos(clipboard.start_index);
+  // int original_pos = input.e;
 
-  // Highlight start to end index
-  for (int i = clipboard.start_index; i < clipboard.end_index; i++) {
-    consputc_color(input.buf[i % INPUT_BUF], HIGHLIGHT_COLOR);
-    input.e++;
-  }
+  // // move cursor to start_index loc.
+  // moveCursorToPos(clipboard.start_index);
 
-  // return cursor to its original pos
-  moveCursorToPos(original_pos);
+  // // Highlight start to end index
+  // for (int i = clipboard.start_index; i < clipboard.end_index; i++) {
+  //   consputc_color(input.buf[i % INPUT_BUF], HIGHLIGHT_COLOR);
+  //   input.e++;
+  // }
+
+  // // return cursor to its original pos
+  // moveCursorToPos(original_pos);
 }
 
 void straitConsole() {
-  int original_pos = input.e;
+  executeAtCursorPos(clipboard.start_index, normalize_range);
 
-  // move cursor to start_index loc.
-  moveCursorToPos(clipboard.start_index);
+  // int original_pos = input.e;
 
-  // Restore normal color from start to end index
-  for (int i = clipboard.start_index; i < clipboard.end_index; i++) {
-    consputc_color(input.buf[i % INPUT_BUF], NORMAL_COLOR);
-    input.e++;
-  }
+  // // move cursor to start_index loc.
+  // moveCursorToPos(clipboard.start_index);
 
-  // return cursor to its original pos
-  moveCursorToPos(original_pos);
+  // // Restore normal color from start to end index
+  // for (int i = clipboard.start_index; i < clipboard.end_index; i++) {
+  //   consputc_color(input.buf[i % INPUT_BUF], NORMAL_COLOR);
+  //   input.e++;
+  // }
+
+  // // return cursor to its original pos
+  // moveCursorToPos(original_pos);
 }
 
 void gayConsole() {
-  int original_pos = input.e;
+  executeAtCursorPos(clipboard.start_index, rainbow_range);
+  // int original_pos = input.e;
 
-  // move cursor to start_index loc.
-  moveCursorToPos(clipboard.start_index);
+  // // move cursor to start_index loc.
+  // moveCursorToPos(clipboard.start_index);
 
-  // Highlight start to end index (local rainbow cycle)
-  for (int i = clipboard.start_index; i < clipboard.end_index; i++) {
-    uchar fg = getRainbowColor(i - clipboard.start_index);
-    consputc_color(input.buf[i % INPUT_BUF], RAINBOW_HIGHLIGHT(fg));
-    input.e++;
-  }
+  // // Highlight start to end index (local rainbow cycle)
+  // for (int i = clipboard.start_index; i < clipboard.end_index; i++) {
+  //   uchar fg = getRainbowColor(i - clipboard.start_index);
+  //   consputc_color(input.buf[i % INPUT_BUF], RAINBOW_HIGHLIGHT(fg));
+  //   input.e++;
+  // }
 
-  // return cursor to its original pos
-  moveCursorToPos(original_pos);
+  // // return cursor to its original pos
+  // moveCursorToPos(original_pos);
 }
 
 uchar getRainbowColor(int offset) {
@@ -1075,7 +1099,7 @@ void clear_line_and_write(const char *cmd){
   cleanConsole();
 
   for (int i = 0; cmd[i] && i < INPUT_BUF-1; i++) {
-    insert_char(cmd[i]);
+    insert_char(cmd[i], 1);
   }
 }
 
@@ -1104,6 +1128,7 @@ void handle_auto_fill(){
 
   int n = auto_state.match_count;
 
+  // first option:
   if(n == 1){
     clear_line_and_write(auto_state.matches[0]);
   }
@@ -1147,17 +1172,24 @@ void moveCursorToPos(int pos) {
 }
 
 void undoLastInput() {
-  if (lastInput.size <= 0)
+  if (lastInputIndex.size <= 0)
     return;
 
   int original_pos = input.e;
 
-  moveCursorToPos(lastInput.pop(&lastInput) + 1);
+  moveCursorToPos(lastInputIndex.pop(&lastInputIndex) + 1);
   
-  delete_char();
+  char temp = lastInputValue.pop(&lastInputValue);
+  if (temp != INTERNAL_FLAG_CHAR) {
+    moveCursorToPos(input.e - 2);
+    insert_char(temp, 0);
+  } else {
+    delete_char();
+    if (original_pos > input.end)
+      original_pos = input.end;
+  }
+    
 
-  if (original_pos > input.end)
-    original_pos = input.end;
   moveCursorToPos(original_pos);
 }
 
@@ -1175,4 +1207,37 @@ void set_cursor_pos(int pos) {
   outb(CRTPORT + 1, pos >> 8);
   outb(CRTPORT, 15);
   outb(CRTPORT + 1, pos);
+}
+
+void executeAtCursorPos(int target_pos, void (*action)(void)) {
+  int original_pos = input.e;
+
+  moveCursorToPos(target_pos);
+
+  if (action)
+    action();
+
+  moveCursorToPos(original_pos);
+}
+
+void highlight_range(void) {
+  for (int i = clipboard.start_index; i < clipboard.end_index; i++) {
+    consputc_color(input.buf[i % INPUT_BUF], HIGHLIGHT_COLOR);
+    input.e++;
+  }
+}
+
+void rainbow_range(void) {
+  for (int i = clipboard.start_index; i < clipboard.end_index; i++) {
+    uchar fg = getRainbowColor(i - clipboard.start_index);
+    consputc_color(input.buf[i % INPUT_BUF], RAINBOW_HIGHLIGHT(fg));
+    input.e++;
+  }
+}
+
+void normalize_range(void) {
+  for (int i = clipboard.start_index; i < clipboard.end_index; i++) {
+    consputc_color(input.buf[i % INPUT_BUF], NORMAL_COLOR);
+    input.e++;
+  }
 }
