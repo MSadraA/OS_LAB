@@ -145,6 +145,8 @@ int min(int a, int b);
 int max(int a, int b);
 
 // Additional functions
+void executeAtCursorPos(int target_pos, void (*action)(void));
+
 int find_prefix_matches(char *prefix, int n, char matches[MAX_FILES][MAX_NAME]);
 void cleanConsole();
 void saveLastInHistory();
@@ -165,8 +167,11 @@ void highlightSelectedWords();
 void gayConsole();
 void straitConsole();
 uchar getRainbowColor(int offset);
-
 void undoLastInput();
+
+void highlight_range(void);
+void rainbow_range(void);
+void normalize_range(void);
 
 // <string.h> standar functions
 char* strchr(const char* str, int c);
@@ -442,6 +447,8 @@ consoleintr(int (*getc)(void))
       break;
 
     case '\t': // Tab
+      
+
       lastInput.clear(&lastInput);
       resetClipboard();
       release(&cons.lock);
@@ -786,52 +793,57 @@ void copySToClipboard()
 }
 
 void highlightSelectedWords() {
-  int original_pos = input.e;
+  executeAtCursorPos(clipboard.start_index, highlight_range); 
 
-  // move cursor to start_index loc.
-  moveCursorToPos(clipboard.start_index);
+  // int original_pos = input.e;
 
-  // Highlight start to end index
-  for (int i = clipboard.start_index; i < clipboard.end_index; i++) {
-    consputc_color(input.buf[i % INPUT_BUF], HIGHLIGHT_COLOR);
-    input.e++;
-  }
+  // // move cursor to start_index loc.
+  // moveCursorToPos(clipboard.start_index);
 
-  // return cursor to its original pos
-  moveCursorToPos(original_pos);
+  // // Highlight start to end index
+  // for (int i = clipboard.start_index; i < clipboard.end_index; i++) {
+  //   consputc_color(input.buf[i % INPUT_BUF], HIGHLIGHT_COLOR);
+  //   input.e++;
+  // }
+
+  // // return cursor to its original pos
+  // moveCursorToPos(original_pos);
 }
 
 void straitConsole() {
-  int original_pos = input.e;
+  executeAtCursorPos(clipboard.start_index, normalize_range);
 
-  // move cursor to start_index loc.
-  moveCursorToPos(clipboard.start_index);
+  // int original_pos = input.e;
 
-  // Restore normal color from start to end index
-  for (int i = clipboard.start_index; i < clipboard.end_index; i++) {
-    consputc_color(input.buf[i % INPUT_BUF], NORMAL_COLOR);
-    input.e++;
-  }
+  // // move cursor to start_index loc.
+  // moveCursorToPos(clipboard.start_index);
 
-  // return cursor to its original pos
-  moveCursorToPos(original_pos);
+  // // Restore normal color from start to end index
+  // for (int i = clipboard.start_index; i < clipboard.end_index; i++) {
+  //   consputc_color(input.buf[i % INPUT_BUF], NORMAL_COLOR);
+  //   input.e++;
+  // }
+
+  // // return cursor to its original pos
+  // moveCursorToPos(original_pos);
 }
 
 void gayConsole() {
-  int original_pos = input.e;
+  executeAtCursorPos(clipboard.start_index, rainbow_range);
+  // int original_pos = input.e;
 
-  // move cursor to start_index loc.
-  moveCursorToPos(clipboard.start_index);
+  // // move cursor to start_index loc.
+  // moveCursorToPos(clipboard.start_index);
 
-  // Highlight start to end index (local rainbow cycle)
-  for (int i = clipboard.start_index; i < clipboard.end_index; i++) {
-    uchar fg = getRainbowColor(i - clipboard.start_index);
-    consputc_color(input.buf[i % INPUT_BUF], RAINBOW_HIGHLIGHT(fg));
-    input.e++;
-  }
+  // // Highlight start to end index (local rainbow cycle)
+  // for (int i = clipboard.start_index; i < clipboard.end_index; i++) {
+  //   uchar fg = getRainbowColor(i - clipboard.start_index);
+  //   consputc_color(input.buf[i % INPUT_BUF], RAINBOW_HIGHLIGHT(fg));
+  //   input.e++;
+  // }
 
-  // return cursor to its original pos
-  moveCursorToPos(original_pos);
+  // // return cursor to its original pos
+  // moveCursorToPos(original_pos);
 }
 
 uchar getRainbowColor(int offset) {
@@ -1145,9 +1157,9 @@ void undoLastInput() {
   moveCursorToPos(lastInput.pop(&lastInput) + 1);
   
   delete_char();
-
   if (original_pos > input.end)
     original_pos = input.end;
+
   moveCursorToPos(original_pos);
 }
 
@@ -1165,4 +1177,37 @@ void set_cursor_pos(int pos) {
   outb(CRTPORT + 1, pos >> 8);
   outb(CRTPORT, 15);
   outb(CRTPORT + 1, pos);
+}
+
+void executeAtCursorPos(int target_pos, void (*action)(void)) {
+  int original_pos = input.e;
+
+  moveCursorToPos(target_pos);
+
+  if (action)
+    action();
+
+  moveCursorToPos(original_pos);
+}
+
+void highlight_range(void) {
+  for (int i = clipboard.start_index; i < clipboard.end_index; i++) {
+    consputc_color(input.buf[i % INPUT_BUF], HIGHLIGHT_COLOR);
+    input.e++;
+  }
+}
+
+void rainbow_range(void) {
+  for (int i = clipboard.start_index; i < clipboard.end_index; i++) {
+    uchar fg = getRainbowColor(i - clipboard.start_index);
+    consputc_color(input.buf[i % INPUT_BUF], RAINBOW_HIGHLIGHT(fg));
+    input.e++;
+  }
+}
+
+void normalize_range(void) {
+  for (int i = clipboard.start_index; i < clipboard.end_index; i++) {
+    consputc_color(input.buf[i % INPUT_BUF], NORMAL_COLOR);
+    input.e++;
+  }
 }
