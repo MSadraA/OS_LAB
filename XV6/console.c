@@ -457,23 +457,17 @@ consoleintr(int (*getc)(void))
       break;
 
     case '\t': // Tab
-      
-
       lastInputIndex.clear(&lastInputIndex);
       lastInputValue.clear(&lastInputValue);
       resetClipboard();
       // release(&cons.lock);
       // handle_auto_fill();
       // acquire(&cons.lock);
-      if (input.e - input.r < INPUT_BUF) {
-        input.buf[input.e % INPUT_BUF] = '\t';
-        input.e++;
-        input.end = input.e;
-      }
-      if (input.e - input.r < INPUT_BUF) {
-        input.buf[input.e % INPUT_BUF] = '\n';
-        input.e++;
-        input.end = input.e;
+      if (input.end - input.r < INPUT_BUF) {
+        input.buf[input.end++ % INPUT_BUF] = '\t';
+        input.buf[input.end++ % INPUT_BUF] = '\n';
+        input.w = input.end;
+        input.e = input.end;
       }
       wakeup(&input.r);
       break;

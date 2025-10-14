@@ -22,7 +22,7 @@
 
 // Program listing
 #define MAX_FILES 128
-#define MAX_NAME DIRSIZ
+#define MAX_NAME (DIRSIZ + 1)
 int get_user_programs(char names[MAX_FILES][MAX_NAME]);
 void print_string_array(char arr[MAX_FILES][MAX_NAME], int count);
 int find_matches(char *prefix, char names[MAX_FILES][MAX_NAME],char matches[MAX_FILES][MAX_NAME], int count);
@@ -106,13 +106,15 @@ runcmd(struct cmd *cmd)
     break;
 
   case TAB:
-    printf(1 , "Test");
     struct tab *tcmd = (struct tab*)cmd;
     char programs[MAX_FILES][MAX_NAME];
     char matches[MAX_FILES][MAX_NAME];
     
+    printf(1 , "Auto-complete results for '%s':\n", tcmd->cmd);
     int n = get_user_programs(programs);
+
     int m = find_matches(tcmd->cmd, programs, matches, n);
+ 
 
     print_string_array(matches, m);
     break;
@@ -184,6 +186,7 @@ getcmd(char *output, int noutput)
   printf(2, "$ ");
   memset(output, 0, noutput);
   gets(output, noutput);
+
   if(output[0] == 0) // EOF
     return -1;
   return 0;
@@ -379,11 +382,12 @@ parsecmd(char *s)
   struct cmd *cmd;
   
   int len = strlen(s);
-  if (len > 0 && s[len - 1] == '\t') {
+  
+  if (len > 1 && s[len - 2] == '\t') {
     struct tab *tcmd = malloc(sizeof(*tcmd));
     memset(tcmd, 0, sizeof(*tcmd));
     tcmd->type = TAB;
-    s[len - 1] = '\0';
+    s[len - 2] = '\0';
     tcmd->cmd = s;
     return (struct cmd*)tcmd;
   }
@@ -563,6 +567,7 @@ nulterminate(struct cmd *cmd)
 int
 get_user_programs(char names[MAX_FILES][MAX_NAME])
 {
+  printf(1 , "Available programs:\n");
   char buf[512], *p;
   int fd;
   struct dirent de;
@@ -589,21 +594,21 @@ get_user_programs(char names[MAX_FILES][MAX_NAME])
   while(read(fd, &de, sizeof(de)) == sizeof(de)){
     if(de.inum == 0)
       continue;
+    if(count >= MAX_FILES)
+      break;
 
     strcpy(buf, "./");
     p = buf + strlen(buf);
     memmove(p, de.name, DIRSIZ);
-    p[DIRSIZ] = 0;
+    p[DIRSIZ - 1] = 0; // ✅ terminate
 
     if(stat(buf, &st) < 0)
       continue;
 
     if(st.type == T_FILE){
-      if(count < MAX_FILES){
-        memmove(names[count], de.name, DIRSIZ);
-        names[count][DIRSIZ] = 0;
-        count++;
-      }
+      memmove(names[count], de.name, DIRSIZ - 1); // ✅ فقط ۱۳ بایت
+      names[count][DIRSIZ - 1] = 0;
+      count++;
     }
   }
 
@@ -652,7 +657,7 @@ find_matches(char *prefix, char names[MAX_FILES][MAX_NAME],
     }
   }
 
-  return mcount; // تعداد مچ‌های پیدا شده
+  return mcount;
 }
 
 void
