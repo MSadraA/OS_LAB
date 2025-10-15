@@ -74,6 +74,7 @@ struct tab
 {
   int type;
   char *cmd; 
+  int tab_check;
 };
 
 
@@ -105,19 +106,41 @@ runcmd(struct cmd *cmd)
   case EXCLAMATION:
     break;
 
-  case TAB:
-    struct tab *tcmd = (struct tab*)cmd;
-    char programs[MAX_FILES][MAX_NAME];
-    char matches[MAX_FILES][MAX_NAME];
-    
-    printf(1 , "Auto-complete results for '%s':\n", tcmd->cmd);
-    int n = get_user_programs(programs);
+  case TAB: {
+  struct tab *tcmd = (struct tab*)cmd;
 
-    int m = find_matches(tcmd->cmd, programs, matches, n);
- 
+  char (*programs)[MAX_NAME] = malloc(sizeof(char) * MAX_FILES * MAX_NAME);
+  char (*matches)[MAX_NAME]  = malloc(sizeof(char) * MAX_FILES * MAX_NAME);
 
+  if (!programs || !matches) {
+    printf(2, "malloc failed\n");
+    exit();
+  }
+
+  int n = get_user_programs(programs);
+  int m = find_matches(tcmd->cmd, programs, matches, n);
+
+  // printf(1, "Found %d matches for '%s':\n", m, tcmd->cmd);
+
+  if(m == 1){
+    write(1 , matches[0] , strlen(matches[0]));
+  }
+  else if(m > 1 && tcmd->tab_check){
+    printf(1 , "\n");
     print_string_array(matches, m);
-    break;
+    printf(1 , "$ ");
+    // write(1 , tcmd->cmd , strlen(tcmd->cmd));
+  }
+  else{
+    write(1 , tcmd->cmd , strlen(tcmd->cmd));
+  }
+
+
+  free(programs);
+  free(matches);
+  break;
+}
+
 
     
   
@@ -180,10 +203,21 @@ runcmd(struct cmd *cmd)
   exit();
 }
 
+int contains_tab(char *output) {
+  for (int i = 0; output[i] != '\0'; i++) {
+    if (output[i] == '\t') {
+      return 1;  
+    }
+  }
+  return 0;  
+}
+
 int
 getcmd(char *output, int noutput)
 {
-  printf(2, "$ ");
+  if(!contains_tab(output))
+    printf(2, "$ ");
+    
   memset(output, 0, noutput);
   gets(output, noutput);
 
@@ -383,11 +417,12 @@ parsecmd(char *s)
   
   int len = strlen(s);
   
-  if (len > 1 && s[len - 2] == '\t') {
+  if (len > 2 && s[len - 2] == '\t') {
     struct tab *tcmd = malloc(sizeof(*tcmd));
     memset(tcmd, 0, sizeof(*tcmd));
     tcmd->type = TAB;
-    s[len - 2] = '\0';
+    tcmd->tab_check = (s[len - 3] == 'T') ? 1 : 0; // if there was a T before tab
+    s[len - 3] = '\0';
     tcmd->cmd = s;
     return (struct cmd*)tcmd;
   }
@@ -567,7 +602,6 @@ nulterminate(struct cmd *cmd)
 int
 get_user_programs(char names[MAX_FILES][MAX_NAME])
 {
-  printf(1 , "Available programs:\n");
   char buf[512], *p;
   int fd;
   struct dirent de;
@@ -600,13 +634,13 @@ get_user_programs(char names[MAX_FILES][MAX_NAME])
     strcpy(buf, "./");
     p = buf + strlen(buf);
     memmove(p, de.name, DIRSIZ);
-    p[DIRSIZ - 1] = 0; // ✅ terminate
+    p[DIRSIZ - 1] = 0;
 
     if(stat(buf, &st) < 0)
       continue;
 
     if(st.type == T_FILE){
-      memmove(names[count], de.name, DIRSIZ - 1); // ✅ فقط ۱۳ بایت
+      memmove(names[count], de.name, DIRSIZ - 1);
       names[count][DIRSIZ - 1] = 0;
       count++;
     }
@@ -646,6 +680,8 @@ find_matches(char *prefix, char names[MAX_FILES][MAX_NAME],
              char matches[MAX_FILES][MAX_NAME], int count)
 {
   int prefix_len = strlen(prefix);
+  if(prefix_len == 0)
+    return 0;
   int mcount = 0;
 
   for (int i = 0; i < count; i++) {
@@ -663,12 +699,7 @@ find_matches(char *prefix, char names[MAX_FILES][MAX_NAME],
 void
 print_string_array(char arr[MAX_FILES][MAX_NAME], int count)
 {
-  if (count <= 0) {
-    printf(1, "(no matches)\n");
-    return;
-  }
-
-  printf(1, "---- Matches ----\n");
+  printf(1, "\n-----------------\n");
   for (int i = 0; i < count; i++) {
     if (arr[i][0] == 0)
       continue; // skip empty strings

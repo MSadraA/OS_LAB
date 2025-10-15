@@ -39,17 +39,10 @@ const char EXCLAMATION_CHAR = '!';
 #define MAX_NAME DIRSIZ
 static int programs_num = 0;
 char programs[MAX_FILES][MAX_NAME];
+int is_tab_context = 0;
+int tab_check = 0;
 
-struct autocomplete_state {
-  int initialized;
-  int tab_state;
-  char last_prefix[MAX_NAME];
-  char matches[MAX_FILES][MAX_NAME];
-  int match_count;
-  int match_index;
-};
-
-static struct autocomplete_state auto_state;
+// static struct autocomplete_state auto_state;
 
 // Color codes
 #define BLACK 0x0
@@ -439,7 +432,8 @@ consoleintr(int (*getc)(void))
       lastInputValue.clear(&lastInputValue);
       resetClipboard();
       cleanConsole();
-      reset_auto_fill_state();
+      tab_check = 0;
+      // reset_auto_fill_state();
       break;
     case KBD_BACKSAPCE: case '\x7f':  // Backspace
       // being_copied = 0;
@@ -449,7 +443,8 @@ consoleintr(int (*getc)(void))
       lastInputValue.push(&lastInputValue, input.buf[(input.e - 1 + INPUT_BUF) % INPUT_BUF]);
 
       delete_char();
-      reset_auto_fill_state();
+      tab_check = 0;
+      // reset_auto_fill_state();
       break;
     case KBD_CTRL_H: // CTRL + H. History
       resetClipboard();
@@ -460,16 +455,20 @@ consoleintr(int (*getc)(void))
       lastInputIndex.clear(&lastInputIndex);
       lastInputValue.clear(&lastInputValue);
       resetClipboard();
-      // release(&cons.lock);
-      // handle_auto_fill();
-      // acquire(&cons.lock);
-      if (input.end - input.r < INPUT_BUF) {
-        input.buf[input.end++ % INPUT_BUF] = '\t';
-        input.buf[input.end++ % INPUT_BUF] = '\n';
-        input.w = input.end;
-        input.e = input.end;
-      }
+      input.buf[input.end++ % INPUT_BUF] = tab_check ? 'T':'F';
+      input.buf[input.end++ % INPUT_BUF] = '\t';
+      input.buf[input.end++ % INPUT_BUF] = '\n';
+
+      // moveCursorToPos(input.w);
+      clear_console();
+      input.w = input.end;
+      input.e = input.end;
+      
+      is_tab_context = 1;
       wakeup(&input.r);
+      tab_check = 1;
+
+      // debug_input_buffer();
       break;
       
     case C('S'):
@@ -504,13 +503,15 @@ consoleintr(int (*getc)(void))
       
     case C('V'):
       // CTRL+V;
-      reset_auto_fill_state();
+      // reset_auto_fill_state();
+      tab_check = 0;
       PasteClipboard();
       break;
 
     case C('Z'):
       // CTRL+Z
-      reset_auto_fill_state();
+      // reset_auto_fill_state();
+      tab_check = 0;
       undoLastInput();
       break;
 
@@ -585,7 +586,8 @@ consoleintr(int (*getc)(void))
         }
         
         insert_char(c, 1);
-        reset_auto_fill_state();
+        // reset_auto_fill_state();
+        tab_check = 0;
         
         // if (c == '\n' || input.e == input.r + INPUT_BUF || c == C('D')) {
         if (c == '\n' || input.e == input.r + INPUT_BUF) {
@@ -686,8 +688,17 @@ consolewrite(struct inode *ip, char *buf, int n)
   int i;
   iunlock(ip);
   acquire(&cons.lock);
-  for(i = 0; i < n; i++)
-    consputc(buf[i] & 0xff);
+
+  if(is_tab_context){
+    for(i = 0; i < n; i++)
+      insert_char(buf[i] & 0xff , 1);
+    // debug_input_buffer();
+    is_tab_context = 0;
+  }
+  else{
+    for(i = 0; i < n; i++)
+      consputc(buf[i] & 0xff);
+  }
   release(&cons.lock);
   ilock(ip);
 
@@ -1089,6 +1100,7 @@ print_string_array(char arr[][MAX_NAME], int count)
 }
 
 
+
 void clear_line_and_write(const char *cmd){
   cleanConsole();
 
@@ -1097,52 +1109,53 @@ void clear_line_and_write(const char *cmd){
   }
 }
 
-void handle_auto_fill(){
-  if(auto_state.initialized == 0){
-    int j = 0;
-    for(int i = input.w ; i < input.end ; i++ , j++)
-      auto_state.last_prefix[j] = input.buf[i];
-    auto_state.last_prefix[j] = '\0';
-    auto_state.match_count = find_prefix_matches(auto_state.last_prefix , programs_num , auto_state.matches);
-    auto_state.match_index = 0;
-    auto_state.initialized = 1;
-  }
+// void handle_auto_fill(){
+//   if(auto_state.initialized == 0){
+//     int j = 0;
+//     for(int i = input.w ; i < input.end ; i++ , j++)
+//       auto_state.last_prefix[j] = input.buf[i];
+//     auto_state.last_prefix[j] = '\0';
+//     auto_state.match_count = find_prefix_matches(auto_state.last_prefix , programs_num , auto_state.matches);
+//     auto_state.match_index = 0;
+//     auto_state.initialized = 1;
+//   }
 
-  if((auto_state.match_count == 0)) return;
+//   if((auto_state.match_count == 0)) return;
 
-  if((input.end <= input.w)){
-    reset_auto_fill_state();
-    return;
-  }
+//   if((input.end <= input.w)){
+//     reset_auto_fill_state();
+//     return;
+//   }
 
-  if(auto_state.match_count > 1 && auto_state.tab_state == 0) {
-    auto_state.tab_state = 1;
-    return;
-  }
+//   if(auto_state.match_count > 1 && auto_state.tab_state == 0) {
+//     auto_state.tab_state = 1;
+//     return;
+//   }
 
-  int n = auto_state.match_count;
+//   int n = auto_state.match_count;
 
-  // first option:
-  if(n == 1){
-    clear_line_and_write(auto_state.matches[0]);
-  }
-  else{
-    cleanConsole();
-    print_string_array(auto_state.matches , auto_state.match_count);
-    cprintf("$ ");
-    clear_line_and_write(auto_state.last_prefix);
-  }
-  // Second option:
-  // clear_line_and_write(auto_state.matches[auto_state.match_index % n]);
-  // auto_state.match_index ++;
-}
+//   // first option:
+//   if(n == 1){
+//     clear_line_and_write(auto_state.matches[0]);
+//   }
+//   else{
+//     cleanConsole();
+//     print_string_array(auto_state.matches , auto_state.match_count);
+//     cprintf("$ ");
+//     clear_line_and_write(auto_state.last_prefix);
+//   }
+//   // Second option:
+//   // clear_line_and_write(auto_state.matches[auto_state.match_index % n]);
+//   // auto_state.match_index ++;
+// }
 
-void reset_auto_fill_state(){
-  auto_state.initialized = 0;
-  auto_state.tab_state = 0;
-  auto_state.match_count = 0;
-  auto_state.match_index = 0;
-}
+// void reset_auto_fill_state(){
+//   auto_state.initialized = 0;
+//   auto_state.tab_state = 0;
+//   auto_state.match_count = 0;
+//   auto_state.match_index = 0;
+// }
+
 // Mathematical functions
 int min(int a, int b)
 {
@@ -1235,3 +1248,32 @@ void normalize_range(void) {
     input.e++;
   }
 }
+
+void clear_console() {
+  moveCursorToPos(input.end);
+  input.e = input.end;
+  if(input.end <= input.w) return;
+  while(input.e != input.w){
+    consputc(BACKSPACE);
+    input.e--;
+  }
+}
+
+void debug_input_buffer() {
+    release(&cons.lock);
+    cprintf("---- Debugging Input Buffer ----\n");
+
+    cprintf("r (read index): %d\n", input.r);
+    cprintf("e (edit index): %d\n", input.e);
+    cprintf("w (write index): %d\n", input.w);
+    cprintf("end (end index): %d\n", input.end);
+
+    cprintf("Buffer from w to end: ");
+    for (int i = input.w; i < input.end; i++) {
+        cprintf("%c", input.buf[i % INPUT_BUF]);
+    }
+
+    cprintf("\n---- End of Debug ----\n");
+    acquire(&cons.lock);
+}
+
