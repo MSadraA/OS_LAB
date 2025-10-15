@@ -260,5 +260,5 @@ sys_critical_section()
 int
 sys_list_programs(void)
 {
-  return list_programs_safe();
+  return 0;
 }

@@ -6,8 +6,6 @@
 #include "stat.h"
 #include "fs.h"
 
-// Exclemation command
-#define EXCLAMATION_CHAR '!'
 
 
 // Parsed command representation
@@ -16,7 +14,6 @@
 #define PIPE  3
 #define LIST  4
 #define BACK  5
-#define EXCLAMATION 6
 #define TAB 7
 #define MAXARGS 10
 
@@ -64,11 +61,6 @@ struct backcmd {
   struct cmd *cmd;
 };
 
-// Exclemation command handeling
-struct exclamation{
-  int type;
-  char *cmd;
-};
 
 struct tab
 {
@@ -103,9 +95,6 @@ runcmd(struct cmd *cmd)
   default:
     panic("runcmd");
   
-  case EXCLAMATION:
-    break;
-
   case TAB: {
   struct tab *tcmd = (struct tab*)cmd;
 
@@ -427,15 +416,6 @@ parsecmd(char *s)
     return (struct cmd*)tcmd;
   }
 
-  if(s[0] == EXCLAMATION_CHAR)
-  {
-    struct exclamation *ncmd = malloc(sizeof(*ncmd));
-    memset(ncmd, 0, sizeof(*ncmd));
-    ncmd->type = EXCLAMATION;
-    ncmd->cmd = s;
-    return (struct cmd*)ncmd;
-  }
-
   es = s + strlen(s);
   cmd = parseline(&s, es);
   peek(&s, es, "");
@@ -598,10 +578,32 @@ nulterminate(struct cmd *cmd)
   return cmd;
 }
 
+char*
+safestrcpy(char *s, const char *t, int n)
+{
+  char *os;
+
+  os = s;
+  if(n <= 0)
+    return os;
+  while(--n > 0 && (*s++ = *t++) != 0)
+    ;
+  *s = 0;
+  return os;
+}
 
 int
-get_user_programs(char names[MAX_FILES][MAX_NAME])
+strncmp(const char *p, const char *q, uint n)
 {
+  while(n > 0 && *p && *p == *q)
+    n--, p++, q++;
+  if(n == 0)
+    return 0;
+  return (uchar)*p - (uchar)*q;
+}
+
+
+int get_user_programs(char names[MAX_FILES][MAX_NAME]) {
   char buf[512], *p;
   int fd;
   struct dirent de;
@@ -640,6 +642,9 @@ get_user_programs(char names[MAX_FILES][MAX_NAME])
       continue;
 
     if(st.type == T_FILE){
+      if(strncmp(de.name, "README", 6) == 0)
+        continue;
+
       memmove(names[count], de.name, DIRSIZ - 1);
       names[count][DIRSIZ - 1] = 0;
       count++;
@@ -647,31 +652,13 @@ get_user_programs(char names[MAX_FILES][MAX_NAME])
   }
 
   close(fd);
+
+  safestrcpy(names[count++], "cd",      MAX_NAME);
+  // safestrcpy(names[count++], "exit",    MAX_NAME);
+  // safestrcpy(names[count++], "help",    MAX_NAME);
+  // safestrcpy(names[count++], "history", MAX_NAME);
+
   return count;
-}
-
-int
-strncmp(const char *p, const char *q, uint n)
-{
-  while(n > 0 && *p && *p == *q)
-    n--, p++, q++;
-  if(n == 0)
-    return 0;
-  return (uchar)*p - (uchar)*q;
-}
-
-char*
-safestrcpy(char *s, const char *t, int n)
-{
-  char *os;
-
-  os = s;
-  if(n <= 0)
-    return os;
-  while(--n > 0 && (*s++ = *t++) != 0)
-    ;
-  *s = 0;
-  return os;
 }
 
 

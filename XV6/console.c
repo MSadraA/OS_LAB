@@ -27,13 +27,6 @@ static struct {
 // Const Values
 #define INPUT_BUF 128
 
-// Exclemation command
-#define EXCLAMATION 6
-#define KEYWORDS_CNT 7
-const char *KEYWORDS[KEYWORDS_CNT] = {"void", "int", "char", "if", "for", "while", "return"};
-const char *DELIMITER = " ";
-const char EXCLAMATION_CHAR = '!';
-
 // Program listing
 #define MAX_FILES 128
 #define MAX_NAME DIRSIZ
@@ -96,17 +89,6 @@ typedef struct {
 static Clipboard clipboard = {.start_index = 0, .end_index = 0, .flag = 0, .valid = 0, .flag_s = 0};
 int being_copied = 0;
 
-// History buffer
-#define HISTORY_SIZE 10
-#define HISTORY_LIMIT 5
-typedef struct {
-  char buf[HISTORY_SIZE][INPUT_BUF];
-  int index;
-  int size;
-} HBuffer;
-static HBuffer history = {.index = 0, .size = 0};
-static HBuffer cmd_history = {.index = 0 , .size = 0};
-
 #define INTERNAL_FLAG_CHAR  0x1F 
 
 // Stack
@@ -168,10 +150,6 @@ void highlight_range(void);
 void rainbow_range(void);
 void normalize_range(void);
 
-// <string.h> standar functions
-char* strchr(const char* str, int c);
-int strcmp(const char* str1, const char* str2);
-char* strtok(char* str, const char* delimiters);
 
 
 static void
@@ -446,10 +424,6 @@ consoleintr(int (*getc)(void))
       tab_check = 0;
       // reset_auto_fill_state();
       break;
-    case KBD_CTRL_H: // CTRL + H. History
-      resetClipboard();
-      showHistory();
-      break;
 
     case '\t': // Tab
       lastInputIndex.clear(&lastInputIndex);
@@ -459,8 +433,8 @@ consoleintr(int (*getc)(void))
       input.buf[input.end++ % INPUT_BUF] = '\t';
       input.buf[input.end++ % INPUT_BUF] = '\n';
 
-      // moveCursorToPos(input.w);
-      clear_console();
+      moveCursorToPos(input.w);
+      // clear_console();
       input.w = input.end;
       input.e = input.end;
       
@@ -586,55 +560,25 @@ consoleintr(int (*getc)(void))
         }
         
         insert_char(c, 1);
-        // reset_auto_fill_state();
         tab_check = 0;
         
-        // if (c == '\n' || input.e == input.r + INPUT_BUF || c == C('D')) {
         if (c == '\n' || input.e == input.r + INPUT_BUF) {
 
           lastInputIndex.clear(&lastInputIndex);
           lastInputValue.clear(&lastInputValue);
-          
-          // release(&cons.lock);
-          // cprintf("[DBG] r=%d e=%d end=%d w=%d buf=%s\n", input.r, input.e, input.end, input.w, input.buf);
-          // acquire(&cons.lock);
-
+        
           input.buf[input.end++ % INPUT_BUF] = '\n';
           consputc('\n');
           input.w = input.end;
           input.e = input.end;
           wakeup(&input.r);
         }
-
-        if(c == '\n' && input.buf[input.r] == EXCLAMATION_CHAR )
-        {
-          release(&cons.lock);
-          char* cmd_without_sharps = remove_between_sharps();
-          cprintf(" ");
-          print_colored_keywords(cmd_without_sharps);
-          cprintf("\n");
-          acquire(&cons.lock);
-        }
         
-        // If the command is finished, save it in history
-        if (c == '\n') 
-        {
-          if (input.r != input.w - 1) {
-            release(&cons.lock);
-            saveLastInHistory();
-            saveLastInCmdHistory();
-            acquire(&cons.lock);
-          }
-        }
       }
       break;
     }
   }
 
-  // if (being_copied == 0)
-  // {
-  //   resetClipboard();
-  // }
 
   release(&cons.lock);
   if(doprocdump) {
@@ -718,54 +662,6 @@ consoleinit(void)
   // programs_num = list_programs();
 }
 
-void saveLastInHistory()
-{
-  // Save the command in history  
-  strSplit(history.buf[history.index], input.buf, input.r, input.w - 1);
-  history.index = (history.index + 1) % HISTORY_SIZE;
-
-  if (history.size < HISTORY_SIZE)
-  {
-    history.size++;
-  } 
-
-}
-
-void saveLastInCmdHistory()
-{
-  if (input.buf[input.r] != EXCLAMATION_CHAR)
-  {
-    strSplit(cmd_history.buf[cmd_history.index], input.buf, input.r, input.w - 1);
-    cmd_history.index = (cmd_history.index + 1) % HISTORY_SIZE;
-
-    if (cmd_history.size < HISTORY_SIZE)
-    {
-      cmd_history.size++;
-    } 
-  }
-}
-
-void showHistory()
-{
-  release(&cons.lock);
-  cprintf("--History BEGIN--\n\n");
-  int start = history.size < HISTORY_LIMIT ? 0 : history.size - HISTORY_LIMIT;
-  for (int i = history.size - 1; i >= start; i--)
-  {
-    cprintf("%s\n", history.buf[i]);
-  }
-  // // show cmd_history
-  // cprintf("command history :\n");
-  // for (int i = cmd_history.size - 1; i >= 0; i--)
-  // {
-  //   cprintf("%s\n", cmd_history.buf[i]);
-  // }
-  // //////////////////////////////////
-  cprintf("\n--History END----\n");
-  cprintf("$ ");
-  acquire(&cons.lock);
-}
-
 void strSplit(char *dst, char *src, int start, int end)
 {
   int i = 0;
@@ -822,56 +718,14 @@ void copySToClipboard()
 
 void highlightSelectedWords() {
   executeAtCursorPos(clipboard.start_index, highlight_range); 
-
-  // int original_pos = input.e;
-
-  // // move cursor to start_index loc.
-  // moveCursorToPos(clipboard.start_index);
-
-  // // Highlight start to end index
-  // for (int i = clipboard.start_index; i < clipboard.end_index; i++) {
-  //   consputc_color(input.buf[i % INPUT_BUF], HIGHLIGHT_COLOR);
-  //   input.e++;
-  // }
-
-  // // return cursor to its original pos
-  // moveCursorToPos(original_pos);
 }
 
 void straitConsole() {
   executeAtCursorPos(clipboard.start_index, normalize_range);
-
-  // int original_pos = input.e;
-
-  // // move cursor to start_index loc.
-  // moveCursorToPos(clipboard.start_index);
-
-  // // Restore normal color from start to end index
-  // for (int i = clipboard.start_index; i < clipboard.end_index; i++) {
-  //   consputc_color(input.buf[i % INPUT_BUF], NORMAL_COLOR);
-  //   input.e++;
-  // }
-
-  // // return cursor to its original pos
-  // moveCursorToPos(original_pos);
 }
 
 void gayConsole() {
   executeAtCursorPos(clipboard.start_index, rainbow_range);
-  // int original_pos = input.e;
-
-  // // move cursor to start_index loc.
-  // moveCursorToPos(clipboard.start_index);
-
-  // // Highlight start to end index (local rainbow cycle)
-  // for (int i = clipboard.start_index; i < clipboard.end_index; i++) {
-  //   uchar fg = getRainbowColor(i - clipboard.start_index);
-  //   consputc_color(input.buf[i % INPUT_BUF], RAINBOW_HIGHLIGHT(fg));
-  //   input.e++;
-  // }
-
-  // // return cursor to its original pos
-  // moveCursorToPos(original_pos);
 }
 
 uchar getRainbowColor(int offset) {
@@ -906,255 +760,6 @@ void consputc_color(int c, uchar color) {
   outb(CRTPORT, 15);
   outb(CRTPORT+1, pos);
 }
-
-
-void cprintf_color(char *str, uchar color) {
-  while (*str) {
-    consputc_color(*str++, color);
-  }
-}
-///////////////////////////////////////////////////////
-
-// <string.h> standar functions  
-char* strchr(const char* str, int c) {
-  while (*str) {
-      if (*str == (char)c) {
-          return (char*)str;
-      }
-      str++;
-  }
-  return NULL
-;
-}
-
-int strcmp(const char* str1, const char* str2) {
-  while (*str1 && (*str1 == *str2)) {
-      str1++;
-      str2++;
-  }
-  return (unsigned char)*str1 - (unsigned char)*str2;
-}
-
-char* strtok(char* str, const char* delimiters) {
-  static char* last = NULL
-;
-  if (str == NULL
-) str = last;
-
-  if (str == NULL
-) return NULL
-;
-
-  while (*str && strchr(delimiters, *str)) str++;
-
-  if (*str == '\0') return NULL;
-
-  char* start = str;
-  while (*str && !strchr(delimiters, *str)) str++;
-
-  if (*str) {
-      *str = '\0';
-      last = str + 1;
-  } else {
-      last = NULL;
-  }
-  return start;
-}
-/////////////////////////////////////////////////
-
-  // ! processing
-  int is_keyword(const char* word) {
-    for (int i = 0; i < KEYWORDS_CNT; i++) {    
-        if (strcmp(word, KEYWORDS[i]) == 0) {
-            return 1; //found
-        }
-    }
-    return 0;//not found
-  }
-
-  char* remove_between_sharps() { 
-    static char output[INPUT_BUF];
-    int j = 0;
-    int is_first_sharp = 1;
-  
-    for (int i = input.r + 1; i < input.w; i++) { 
-      if (input.buf[i] == '#') {
-        int next_sharp = i + 1;
-        while (next_sharp < input.w && input.buf[next_sharp] != '#') {
-          next_sharp++;
-        }
-        if (input.buf[next_sharp] == '#') { 
-          i = next_sharp - 1;
-          is_first_sharp = 0;
-          continue;
-        }
-        else if (i == input.w - 1 && is_first_sharp) {  
-          output[j++] = input.buf[i];  
-          continue;
-        }
-      }
-      else {
-        output[j++] = input.buf[i];
-      }
-    }
-    output[j-1] = '\0'; 
-    return output;
-  }
-
-void print_colored_keywords(char *input) { //input : !if x == 3 return 0
-  char *token;  
-  token = strtok(input, DELIMITER);
-
-  while (token != NULL) {
-      if (is_keyword(token)) {
-           cprintf_color(token, BLUE);
-      } else {
-          cprintf_color(token, WHITE);
-      }
-      consputc(' ');
-      token = strtok(NULL, DELIMITER);
-  }
-}
-
-int find_prefix_matches(char *prefix, int n, char matches[MAX_FILES][MAX_NAME]) {
-  int count = 0;
-  int len = strlen(prefix);
-
-  for (int i = 0; i < n; i++) {
-    if (strncmp(programs[i], prefix, len) == 0) {
-      strncpy(matches[count], programs[i], MAX_NAME);
-      matches[count][MAX_NAME - 1] = '\0';
-      count++;
-    }
-  }
-
-  return count;
-}
-
-
-int list_programs_safe(void)
-{
-  struct inode *dp;
-  struct dirent de;
-  uint off;
-  int count = 0;
-
-  begin_op();
-
-  dp = namei("/");
-  if (dp == 0) {
-    cprintf("auto: cannot open root directory\n");
-    end_op();
-    return -1;
-  }
-
-  ilock(dp);
-
-  for (off = 0; off + sizeof(de) <= dp->size; off += sizeof(de)) {
-    if (readi(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
-      break;
-    if (de.inum == 0)
-      continue;
-    if (count >= MAX_FILES)
-      break;
-
-    char namebuf[DIRSIZ + 1];
-    memmove(namebuf, de.name, DIRSIZ);
-    namebuf[DIRSIZ] = 0;
-
-    safestrcpy(programs[count], namebuf, MAX_NAME);
-    programs[count][MAX_NAME - 1] = '\0';
-    count++;
-  }
-
-  iunlockput(dp);
-
-  end_op();
-
-  programs_num = count;
-
-  // some built-in commands
-  safestrcpy(programs[programs_num++], "cd", MAX_NAME);
-  safestrcpy(programs[programs_num++], "exit", MAX_NAME);
-  safestrcpy(programs[programs_num++], "help", MAX_NAME);
-  safestrcpy(programs[programs_num++], "history", MAX_NAME);
-
-  return count;
-}
-
-void
-print_string_array(char arr[][MAX_NAME], int count)
-{
-  cprintf("\n-----------------------------\n", count);
-
-  if (count == 0) {
-    return;
-  }
-
-  for (int i = 0; i < count; i++) {
-    if (arr[i][0] == '\0')
-      continue;
-    cprintf("   %s\n", arr[i]);
-  }
-  cprintf("-----------------------------\n");
-}
-
-
-
-void clear_line_and_write(const char *cmd){
-  cleanConsole();
-
-  for (int i = 0; cmd[i] && i < INPUT_BUF-1; i++) {
-    insert_char(cmd[i], 1);
-  }
-}
-
-// void handle_auto_fill(){
-//   if(auto_state.initialized == 0){
-//     int j = 0;
-//     for(int i = input.w ; i < input.end ; i++ , j++)
-//       auto_state.last_prefix[j] = input.buf[i];
-//     auto_state.last_prefix[j] = '\0';
-//     auto_state.match_count = find_prefix_matches(auto_state.last_prefix , programs_num , auto_state.matches);
-//     auto_state.match_index = 0;
-//     auto_state.initialized = 1;
-//   }
-
-//   if((auto_state.match_count == 0)) return;
-
-//   if((input.end <= input.w)){
-//     reset_auto_fill_state();
-//     return;
-//   }
-
-//   if(auto_state.match_count > 1 && auto_state.tab_state == 0) {
-//     auto_state.tab_state = 1;
-//     return;
-//   }
-
-//   int n = auto_state.match_count;
-
-//   // first option:
-//   if(n == 1){
-//     clear_line_and_write(auto_state.matches[0]);
-//   }
-//   else{
-//     cleanConsole();
-//     print_string_array(auto_state.matches , auto_state.match_count);
-//     cprintf("$ ");
-//     clear_line_and_write(auto_state.last_prefix);
-//   }
-//   // Second option:
-//   // clear_line_and_write(auto_state.matches[auto_state.match_index % n]);
-//   // auto_state.match_index ++;
-// }
-
-// void reset_auto_fill_state(){
-//   auto_state.initialized = 0;
-//   auto_state.tab_state = 0;
-//   auto_state.match_count = 0;
-//   auto_state.match_index = 0;
-// }
 
 // Mathematical functions
 int min(int a, int b)
@@ -1198,22 +803,6 @@ void undoLastInput() {
     
 
   moveCursorToPos(original_pos);
-}
-
-int get_cursor_pos() {
-  outb(CRTPORT, 14);
-  int pos = inb(CRTPORT + 1) << 8;
-  outb(CRTPORT, 15);
-  pos |= inb(CRTPORT + 1);
-  return pos;
-}
-
-
-void set_cursor_pos(int pos) {
-  outb(CRTPORT, 14);
-  outb(CRTPORT + 1, pos >> 8);
-  outb(CRTPORT, 15);
-  outb(CRTPORT + 1, pos);
 }
 
 void executeAtCursorPos(int target_pos, void (*action)(void)) {
@@ -1276,4 +865,3 @@ void debug_input_buffer() {
     cprintf("\n---- End of Debug ----\n");
     acquire(&cons.lock);
 }
-
