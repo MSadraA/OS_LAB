@@ -445,8 +445,8 @@ consoleintr(int (*getc)(void))
       input.buf[input.end++ % INPUT_BUF] = '\n';
 
       moveCursorToPos(input.w);
-      input.w = input.end;
       input.e = input.end;
+      input.w = input.end;
       
       is_tab_context = 1;
       wakeup(&input.r);
@@ -565,7 +565,7 @@ consoleintr(int (*getc)(void))
         tab_check = 0;
     
         if (c == '\n') {         
-          debugPrintBuffer();
+          // debugPrintBuffer();
           lastInputIndex.clear(&lastInputIndex);
           lastInputValue.clear(&lastInputValue);
     
@@ -643,7 +643,7 @@ consolewrite(struct inode *ip, char *buf, int n)
     return n;
   }
 
-  if(is_tab_context && strlen(buf) > 0 && buf[0] == special_tab_char){
+  if(is_tab_context && strlen(buf) > 0 && buf[0] == special_tab_char){  
     for(i = 1; i < n; i++)
       insert_char(buf[i] & 0xff , 1);
     // debug_input_buffer();
@@ -780,14 +780,13 @@ int max(int a, int b)
   return (a > b)? a:b;
 }
 
+// raw index
 void moveCursorToPos(int pos) {
   while (input.e != pos) {
     if (input.e > pos) {
-      move_cursor(-1);
-      input.e--;
+      moveLeft();
     } else {      
-      move_cursor(1);
-      input.e++;
+      moveRight();
     }
   }
 }
