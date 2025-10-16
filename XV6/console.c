@@ -27,11 +27,7 @@ static struct {
 // Const Values
 #define INPUT_BUF 128
 
-// Program listing
-#define MAX_FILES 128
-#define MAX_NAME DIRSIZ
-static int programs_num = 0;
-char programs[MAX_FILES][MAX_NAME];
+// Tab handling
 int is_tab_context = 0;
 int tab_check = 0;
 int special_tab_char = '\x01';
@@ -124,16 +120,9 @@ int max(int a, int b);
 
 // Additional functions
 void executeAtCursorPos(int target_pos, void (*action)(void));
-
-int find_prefix_matches(char *prefix, int n, char matches[MAX_FILES][MAX_NAME]);
 void cleanConsole();
-void saveLastInHistory();
-void saveLastInCmdHistory();
-void showHistory();
 void strSplit(char *dst, char *src, int start, int end);
 void cprintf_color(char *str, uchar color);
-char* remove_between_sharps();
-void print_colored_keywords(char *input) ;
 void consputc_color(int c, uchar color);
 void moveCursorToPos(int pos);
 
@@ -146,7 +135,6 @@ void gayConsole();
 void straitConsole();
 uchar getRainbowColor(int offset);
 void undoLastInput();
-
 void highlight_range(void);
 void rainbow_range(void);
 void normalize_range(void);
@@ -660,7 +648,6 @@ consoleinit(void)
   cons.locking = 1;
 
   ioapicenable(IRQ_KBD, 0);
-  // programs_num = list_programs();
 }
 
 void strSplit(char *dst, char *src, int start, int end)
