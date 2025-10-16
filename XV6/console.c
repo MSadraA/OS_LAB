@@ -565,7 +565,7 @@ consoleintr(int (*getc)(void))
         tab_check = 0;
     
         if (c == '\n') {         
-          debugPrintBuffer();
+          // debugPrintBuffer();
           lastInputIndex.clear(&lastInputIndex);
           lastInputValue.clear(&lastInputValue);
     
