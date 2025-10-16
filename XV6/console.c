@@ -34,6 +34,7 @@ static int programs_num = 0;
 char programs[MAX_FILES][MAX_NAME];
 int is_tab_context = 0;
 int tab_check = 0;
+int special_tab_char = '\x01';
 
 // static struct autocomplete_state auto_state;
 
@@ -633,8 +634,8 @@ consolewrite(struct inode *ip, char *buf, int n)
   iunlock(ip);
   acquire(&cons.lock);
 
-  if(is_tab_context){
-    for(i = 0; i < n; i++)
+  if(is_tab_context && strlen(buf) > 0 && buf[0] == special_tab_char){
+    for(i = 1; i < n; i++)
       insert_char(buf[i] & 0xff , 1);
     // debug_input_buffer();
     is_tab_context = 0;

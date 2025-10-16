@@ -94,44 +94,37 @@ runcmd(struct cmd *cmd)
   switch(cmd->type){
   default:
     panic("runcmd");
-  
-  case TAB: {
-  struct tab *tcmd = (struct tab*)cmd;
-
-  char (*programs)[MAX_NAME] = malloc(sizeof(char) * MAX_FILES * MAX_NAME);
-  char (*matches)[MAX_NAME]  = malloc(sizeof(char) * MAX_FILES * MAX_NAME);
-
-  if (!programs || !matches) {
-    printf(2, "malloc failed\n");
-    exit();
-  }
-
-  int n = get_user_programs(programs);
-  int m = find_matches(tcmd->cmd, programs, matches, n);
-
-  // printf(1, "Found %d matches for '%s':\n", m, tcmd->cmd);
-
-  if(m == 1){
-    write(1 , matches[0] , strlen(matches[0]));
-  }
-  else if(m > 1 && tcmd->tab_check){
-    printf(1 , "\n");
-    print_string_array(matches, m);
-    printf(1 , "$ ");
-    // write(1 , tcmd->cmd , strlen(tcmd->cmd));
-  }
-  else{
-    write(1 , tcmd->cmd , strlen(tcmd->cmd));
-  }
-
-
-  free(programs);
-  free(matches);
-  break;
-}
-
-
     
+  case TAB: {
+    struct tab *tcmd = (struct tab*)cmd;
+
+    char (*programs)[MAX_NAME] = malloc(sizeof(char) * MAX_FILES * MAX_NAME);
+    char (*matches)[MAX_NAME]  = malloc(sizeof(char) * MAX_FILES * MAX_NAME);
+
+    if (!programs || !matches) {
+      printf(2, "malloc failed\n");
+      exit();
+    }
+
+    int n = get_user_programs(programs);
+    int m = find_matches(tcmd->cmd, programs, matches, n);
+
+    if(m == 1)
+      console_write(matches[0] );
+    
+    else if(m > 1 && tcmd->tab_check){
+      print_string_array(matches, m);
+      printf(1 , "$ ");
+      console_write(tcmd->cmd);
+    }
+    else
+      console_write(tcmd->cmd);
+    
+
+    free(programs);
+    free(matches);
+    break;
+  }
   
   case EXEC:
     ecmd = (struct execcmd*)cmd;
@@ -693,4 +686,19 @@ print_string_array(char arr[MAX_FILES][MAX_NAME], int count)
     printf(1, "  %s\n", arr[i]);
   }
   printf(1, "-----------------\n");
+}
+
+void*
+memcpy(void *dst, const void *src, uint n)
+{
+  return memmove(dst, src, n);
+}
+
+void
+console_write(char *str)
+{
+  char tab_buf[128];
+  tab_buf[0] = '\x01';
+  memcpy(tab_buf + 1, str, strlen(str));
+  write(1, tab_buf, strlen(str) + 1);
 }
