@@ -444,7 +444,7 @@ consoleintr(int (*getc)(void))
       input.buf[input.end++ % INPUT_BUF] = '\t';
       input.buf[input.end++ % INPUT_BUF] = '\n';
 
-      moveCursorToPos(input.w);
+      moveCursorToPos(input.r);
       input.w = input.end;
       input.e = input.end;
       
@@ -565,7 +565,7 @@ consoleintr(int (*getc)(void))
         tab_check = 0;
     
         if (c == '\n') {         
-          // debugPrintBuffer();
+          debugPrintBuffer();
           lastInputIndex.clear(&lastInputIndex);
           lastInputValue.clear(&lastInputValue);
     
@@ -781,8 +781,8 @@ int max(int a, int b)
 }
 
 void moveCursorToPos(int pos) {
-  while (input.e != pos) {
-    if (input.e > pos) {
+  while ((input.e % INPUT_BUF) != (pos % INPUT_BUF)) {
+    if ((input.e % INPUT_BUF) > (pos % INPUT_BUF)) {
       move_cursor(-1);
       input.e--;
     } else {      
