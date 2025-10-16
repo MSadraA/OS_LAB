@@ -25,8 +25,8 @@ static struct {
 } cons;
 
 // Const Values
-// #define INPUT_BUF 128 
-#define INPUT_BUF 512 // I want'em BIIIG.. I want'em CHUUUNKY... I want'em BIIIG
+#define INPUT_BUF 30
+// #define INPUT_BUF 512 // I want'em BIIIG.. I want'em CHUUUNKY... I want'em BIIIG
 
 // Tab handling
 int is_tab_context = 0;
@@ -125,6 +125,9 @@ void cprintf_color(char *str, uchar color);
 void consputc_color(int c, uchar color);
 void moveCursorToPos(int pos);
 void clearBuffer();
+
+void moveRight();
+void moveLeft();
 
 // Clipboard Functions
 void resetClipboard();
@@ -860,4 +863,14 @@ void clearBuffer() {
   memset(input.buf, 0, sizeof(input.buf));
   input.r = input.w = input.e = input.end = 0;
   // cprintf("[DBG] Buffer reset (no screen clear).\n");
+}
+
+void moveRight() {
+  move_cursor(1);
+  input.e = (input.e + 1) % INPUT_BUF;
+}
+
+void moveLeft() {
+  move_cursor(-1);
+  input.e = (input.e - 1 + INPUT_BUF) % INPUT_BUF;
 }
