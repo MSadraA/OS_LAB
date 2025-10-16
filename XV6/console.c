@@ -443,7 +443,7 @@ consoleintr(int (*getc)(void))
       input.buf[input.end++ % INPUT_BUF] = tab_check ? 'T':'F';
       input.buf[input.end++ % INPUT_BUF] = '\t';
       input.buf[input.end++ % INPUT_BUF] = '\n';
-
+      
       moveCursorToPos(input.w);
       input.e = input.end;
       input.w = input.end;
