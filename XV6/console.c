@@ -25,8 +25,8 @@ static struct {
 } cons;
 
 // Const Values
-// #define INPUT_BUF 128 
-#define INPUT_BUF 512 // I want'em BIIIG.. I want'em CHUUUNKY... I want'em BIIIG
+#define INPUT_BUF 128
+// #define INPUT_BUF 512 // I want'em BIIIG.. I want'em CHUUUNKY... I want'em BIIIG
 
 // Tab handling
 int is_tab_context = 0;
@@ -120,11 +120,15 @@ int max(int a, int b);
 // Additional functions
 void executeAtCursorPos(int target_pos, void (*action)(void));
 void cleanConsole();
-void strSplit(char *dst, char *src, int start, int end);
+void strSplit(char *dst, char *src, int start, int end, int size);
 void cprintf_color(char *str, uchar color);
 void consputc_color(int c, uchar color);
 void moveCursorToPos(int pos);
 void clearBuffer();
+void debugPrintBuffer(void);
+
+void moveRight();
+void moveLeft();
 
 // Clipboard Functions
 void resetClipboard();
@@ -326,14 +330,21 @@ struct {
   uint end; // End index
 } input;
 
-
 void redraw_from_edit_point(void) {
-  for (int i = input.e; i < input.end; i++)
-    consputc(input.buf[i]);
+  int count = 0;
+  int idx = input.e;
 
-  for (int i = input.end; i > input.e; i--)
+  while (input.buf[idx % INPUT_BUF] != '\0')
+  {
+    consputc(input.buf[idx % INPUT_BUF]);
+    count++;
+    idx++;
+  }
+
+  for (int k = 0; k < count; k++)
     move_cursor(-1);
 }
+
 
 void delete_char() {
   if (input.e <= input.w) return;
@@ -347,37 +358,50 @@ void delete_char() {
   else{
     for (int i = input.e - 1; i < input.end - 1; i++) 
     {
-      input.buf[i] = input.buf[i + 1];
+      input.buf[i % INPUT_BUF] = input.buf[(i + 1) % INPUT_BUF];
     }
-    move_cursor(-1);
-    input.e--;
+    
+    moveLeft();
+
     input.end--;
     input.buf[input.end % INPUT_BUF] = '\0';
     redraw_from_edit_point();
   }
 }
 
-// default flag = 1
 void insert_char(char c, int flag) {
-  if(c == '\n') return;
+  if (c == '\n') return;
+
+  if (input.end - input.r >= INPUT_BUF) {
+    input.r++;  
+  }
 
   if (flag) {
     lastInputIndex.push(&lastInputIndex, input.e);
     lastInputValue.push(&lastInputValue, INTERNAL_FLAG_CHAR);
   }
-  
-  for (int i = input.end ; i > input.e; i--)
-    input.buf[i] = input.buf[i - 1];
+
+  // shift block: [input.e .. input.end-1] one step to the right (circular-safe)
+  int pos = input.end;
+  int distance = (input.end - input.e + INPUT_BUF) % INPUT_BUF;
+
+  for (int k = 0; k < distance; k++) {
+    int from = (pos - k - 1 + INPUT_BUF) % INPUT_BUF;
+    int to = (from + 1) % INPUT_BUF;
+    input.buf[to] = input.buf[from];
+  }
   
   consputc(c);
-  
-  input.buf[input.e++ % INPUT_BUF] = c;
+  input.buf[input.e % INPUT_BUF] = c;
+  input.e++;
   input.end++;
+
   input.buf[input.end % INPUT_BUF] = '\0';
-  
-  
+
+  // debugPrintBuffer();
   redraw_from_edit_point();
 }
+
 
 #define C(x)  ((x)-'@')  // Control-x
 
@@ -477,37 +501,35 @@ consoleintr(int (*getc)(void))
       // Left Arrow
       if (input.e != input.w)
       {
-        move_cursor(-1);
-        input.e--;
+        moveLeft();
       }    
       break;
 
     case KBD_KEY_RIGHT:
       {
         // Right Arrow
-        int line_end = input.w + strlen(input.buf + input.w);
-        if (input.e < input.w + INPUT_BUF && input.e < line_end)
+        // int line_end = input.w + strlen(input.buf + input.w);
+        // if (input.e < input.w + INPUT_BUF && input.e < line_end)
+        // if (input.buf[input.e % INPUT_BUF] != '\0' && input.e < line_end)
+        if (input.e < input.end && input.buf[(input.e) % INPUT_BUF] != '\0')
         {
-          move_cursor(1);
-          input.e++;
+          moveRight();
         }
         break;
       }
       
     case C('D'): // Ctrl + D
       {
-        int line_end = input.w + strlen(input.buf + input.w);
+        // int line_end = input.w + strlen(input.buf + input.w);
         // Move to the end of the current word
-        while (input.e < line_end && input.buf[input.e % INPUT_BUF] != ' ' && input.buf[input.e % INPUT_BUF] != '\0')
+        while (input.e < input.end && input.buf[input.e % INPUT_BUF] != ' ' && input.buf[input.e % INPUT_BUF] != '\0')
         {
-          move_cursor(1);
-          input.e++;
+          moveRight();
         }
         // Move to the beginning of the next word
-        while (input.e < line_end && input.buf[input.e % INPUT_BUF] == ' ')
+        while (input.e < input.end && input.buf[input.e % INPUT_BUF] == ' ')
         {
-          move_cursor(1);
-          input.e++;
+          moveRight();
         }
         break;
       }
@@ -521,50 +543,41 @@ consoleintr(int (*getc)(void))
         {
           while (input.e > input.w && input.buf[(input.e - 1 + INPUT_BUF) % INPUT_BUF] == ' ')
           {
-            move_cursor(-1);
-            input.e--;
+            moveLeft();
           }
         }
         // Move to the beginning of the current word
         while (input.e > input.w && input.buf[(input.e - 1 + INPUT_BUF) % INPUT_BUF] != ' ')
         {
-          move_cursor(-1);
-          input.e--;
+          moveLeft();
         }
         break;
       }
 
     default:
-      if(c != 0 && input.e-input.r < INPUT_BUF){
+      if (c != 0) {                        
         c = (c == '\r') ? '\n' : c;
-        
+    
         if (c == '\n' || !being_copied)
-        {
           resetClipboard();
-        }
-        
-        insert_char(c, 1);
+    
+        insert_char(c, 1);          
         tab_check = 0;
-        
-        // if (c == '\n' || input.e == input.r + INPUT_BUF || C('D')) {
-        if (c == '\n' || input.e == input.r + INPUT_BUF) {
-
+    
+        if (c == '\n') {         
+          debugPrintBuffer();
           lastInputIndex.clear(&lastInputIndex);
           lastInputValue.clear(&lastInputValue);
-        
-          input.buf[input.end++ % INPUT_BUF] = '\n';
-
-          
+    
+          input.buf[input.end % INPUT_BUF] = '\n';
+          input.end++;
+    
           consputc('\n');
           input.w = input.end;
           input.e = input.end;
+          
           wakeup(&input.r);
-
-          // // clean buffer
-          // if (input.e == input.r + INPUT_BUF)
-          //   clearBuffer();
         }
-        
       }
       break;
     }
@@ -658,12 +671,12 @@ consoleinit(void)
   ioapicenable(IRQ_KBD, 0);
 }
 
-void strSplit(char *dst, char *src, int start, int end)
+void strSplit(char *dst, char *src, int start, int end, int size)
 {
   int i = 0;
   for (int j = start; j < end; j++)
   {
-    dst[i++] = src[j];
+    dst[i++] = src[j % size];
   }
   dst[i] = '\0';
 }
@@ -705,7 +718,7 @@ void copySToClipboard()
 {
   if (clipboard.flag == 1)
   {
-    strSplit(clipboard.buf, input.buf, clipboard.start_index, clipboard.end_index);
+    strSplit(clipboard.buf, input.buf, clipboard.start_index, clipboard.end_index, INPUT_BUF);
     clipboard.valid = 1;
     being_copied = 0;
     resetClipboard();
@@ -867,3 +880,36 @@ void clearBuffer() {
   input.r = input.w = input.e = input.end = 0;
   // cprintf("[DBG] Buffer reset (no screen clear).\n");
 }
+
+void moveRight() {
+  move_cursor(1);
+  input.e++;
+}
+
+void moveLeft() {
+  move_cursor(-1);
+  input.e--;
+}
+
+void debugPrintBuffer(void) {
+  release(&cons.lock);
+  cprintf("\n[DBG] Buffer dump (r=%d, w=%d, e=%d, end=%d):\n",
+    input.r, input.w, input.e, input.end);
+  acquire(&cons.lock);
+
+  for (int i = 0; i < INPUT_BUF; i++) {
+    char c = input.buf[i];
+    if (c == '\0')
+      consputc('.');
+    else if (c == '\n')
+      consputc('\\'), consputc('n');
+    else if (c == '\r')
+      consputc('\\'), consputc('r');
+    else
+      consputc(c);
+  }
+  release(&cons.lock);
+  cprintf("\n[END OF BUFFER]\n");
+  acquire(&cons.lock);
+}
+
