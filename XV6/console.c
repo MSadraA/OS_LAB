@@ -25,7 +25,8 @@ static struct {
 } cons;
 
 // Const Values
-#define INPUT_BUF 128
+// #define INPUT_BUF 128 
+#define INPUT_BUF 512 // I want'em BIIIG.. I want'em CHUUUNKY... I want'em BIIIG
 
 // Tab handling
 int is_tab_context = 0;
@@ -123,6 +124,7 @@ void strSplit(char *dst, char *src, int start, int end);
 void cprintf_color(char *str, uchar color);
 void consputc_color(int c, uchar color);
 void moveCursorToPos(int pos);
+void clearBuffer();
 
 // Clipboard Functions
 void resetClipboard();
@@ -544,16 +546,23 @@ consoleintr(int (*getc)(void))
         insert_char(c, 1);
         tab_check = 0;
         
+        // if (c == '\n' || input.e == input.r + INPUT_BUF || C('D')) {
         if (c == '\n' || input.e == input.r + INPUT_BUF) {
 
           lastInputIndex.clear(&lastInputIndex);
           lastInputValue.clear(&lastInputValue);
         
           input.buf[input.end++ % INPUT_BUF] = '\n';
+
+          
           consputc('\n');
           input.w = input.end;
           input.e = input.end;
           wakeup(&input.r);
+
+          // // clean buffer
+          // if (input.e == input.r + INPUT_BUF)
+          //   clearBuffer();
         }
         
       }
@@ -851,4 +860,10 @@ void debug_input_buffer() {
 
     cprintf("\n---- End of Debug ----\n");
     acquire(&cons.lock);
+}
+
+void clearBuffer() {
+  memset(input.buf, 0, sizeof(input.buf));
+  input.r = input.w = input.e = input.end = 0;
+  // cprintf("[DBG] Buffer reset (no screen clear).\n");
 }
