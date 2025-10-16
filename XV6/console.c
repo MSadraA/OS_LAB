@@ -25,7 +25,8 @@ static struct {
 } cons;
 
 // Const Values
-#define INPUT_BUF 128
+// #define INPUT_BUF 128 
+#define INPUT_BUF 512 // I want'em BIIIG.. I want'em CHUUUNKY... I want'em BIIIG
 
 // Tab handling
 int is_tab_context = 0;
