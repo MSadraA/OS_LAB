@@ -614,6 +614,12 @@ consolewrite(struct inode *ip, char *buf, int n)
   int i;
   iunlock(ip);
   acquire(&cons.lock);
+  
+  if(strlen(buf) == 1 && buf[0] == special_tab_char){
+    release(&cons.lock);
+    ilock(ip);
+    return n;
+  }
 
   if(is_tab_context && strlen(buf) > 0 && buf[0] == special_tab_char){
     for(i = 1; i < n; i++)
