@@ -32,8 +32,6 @@ int is_tab_context = 0;
 int tab_check = 0;
 int special_tab_char = '\x01';
 
-// static struct autocomplete_state auto_state;
-
 // Color codes
 #define BLACK 0x0
 #define BLUE 0x1
@@ -400,7 +398,6 @@ consoleintr(int (*getc)(void))
       resetClipboard();
       cleanConsole();
       tab_check = 0;
-      // reset_auto_fill_state();
       break;
     case KBD_BACKSAPCE: case '\x7f':  // Backspace
       // being_copied = 0;
@@ -411,7 +408,6 @@ consoleintr(int (*getc)(void))
 
       delete_char();
       tab_check = 0;
-      // reset_auto_fill_state();
       break;
 
     case '\t': // Tab
@@ -423,7 +419,6 @@ consoleintr(int (*getc)(void))
       input.buf[input.end++ % INPUT_BUF] = '\n';
 
       moveCursorToPos(input.w);
-      // clear_console();
       input.w = input.end;
       input.e = input.end;
       
@@ -466,14 +461,12 @@ consoleintr(int (*getc)(void))
       
     case C('V'):
       // CTRL+V;
-      // reset_auto_fill_state();
       tab_check = 0;
       PasteClipboard();
       break;
 
     case C('Z'):
       // CTRL+Z
-      // reset_auto_fill_state();
       tab_check = 0;
       undoLastInput();
       break;
