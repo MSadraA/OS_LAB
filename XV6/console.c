@@ -126,6 +126,7 @@ void consputc_color(int c, uchar color);
 void moveCursorToPos(int pos);
 void clearBuffer();
 void debugPrintBuffer(void);
+void move_cursor_to_line_start(void);
 
 void moveRight();
 void moveLeft();
@@ -440,11 +441,12 @@ consoleintr(int (*getc)(void))
       lastInputIndex.clear(&lastInputIndex);
       lastInputValue.clear(&lastInputValue);
       resetClipboard();
+      moveCursorToPos(input.w);
       input.buf[input.end++ % INPUT_BUF] = tab_check ? 'T':'F';
       input.buf[input.end++ % INPUT_BUF] = '\t';
       input.buf[input.end++ % INPUT_BUF] = '\n';
-      
-      moveCursorToPos(input.w);
+
+      // move_cursor_to_line_start();
       input.e = input.end;
       input.w = input.end;
       
@@ -912,3 +914,19 @@ void debugPrintBuffer(void) {
   acquire(&cons.lock);
 }
 
+void move_cursor_to_line_start(void) {
+  outb(CRTPORT, 14);
+  int pos = inb(CRTPORT + 1) << 8;
+  outb(CRTPORT, 15);
+  pos |= inb(CRTPORT + 1);
+
+  // jump to start of current line
+  pos -= pos % 80;
+  pos += 2;
+
+  // update hardware cursor
+  outb(CRTPORT, 14);
+  outb(CRTPORT + 1, pos >> 8);
+  outb(CRTPORT, 15);
+  outb(CRTPORT + 1, pos);
+}
