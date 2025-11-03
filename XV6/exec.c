@@ -92,17 +92,6 @@ exec(char *path, char **argv)
     if(*s == '/')
       last = s+1;
   safestrcpy(curproc->name, last, sizeof(curproc->name));
-  if(strlen(curproc->parent->name)== 2 && strncmp(curproc->parent->name,"sh",2)==0)
-  {
-    curproc->cal=MULTILEVEL_FEEDBACK_QUEUE_SECOND_LEVEL;
-    curproc->arrival_time_to_system=ticks;
-    curproc->entering_time_to_the_fcfs_queue=ticks;
-    if(curproc->state==RUNNABLE)
-    {
-      number_of_runnable_multilevel_feedback_queue[0]--;
-      number_of_runnable_multilevel_feedback_queue[1]++;
-    }
-  }
 
   // Commit to the user image.
   oldpgdir = curproc->pgdir;

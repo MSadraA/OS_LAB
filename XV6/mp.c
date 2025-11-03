@@ -84,8 +84,6 @@ mpconfig(struct mp **pmp)
     return 0;
   if(sum((uchar*)conf, conf->length) != 0)
     return 0;
-  
-  
   *pmp = mp;
   return conf;
 }
@@ -99,7 +97,7 @@ mpinit(void)
   struct mpconf *conf;
   struct mpproc *proc;
   struct mpioapic *ioapic;
-  
+
   if((conf = mpconfig(&mp)) == 0)
     panic("Expect to run on an SMP");
   ismp = 1;
@@ -138,8 +136,4 @@ mpinit(void)
     outb(0x22, 0x70);   // Select IMCR
     outb(0x23, inb(0x23) | 1);  // Mask external interrupts.
   }
-
-
-  cprintf("Number of CPUs detected: %d\n", ncpu);
-
 }

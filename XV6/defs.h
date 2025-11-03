@@ -101,7 +101,6 @@ void            pipeclose(struct pipe*, int);
 int             piperead(struct pipe*, char*, int);
 int             pipewrite(struct pipe*, char*, int);
 
-
 //PAGEBREAK: 16
 // proc.c
 int             cpuid(void);
@@ -121,27 +120,6 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
-void            next_palindrome(int);
-int             set_sleep_syscall(int);
-int             get_system_time(struct rtcdate*);
-
-int             make_user(int, const char*);
-int             login(int, const char*);
-int             logout(void);
-int             logs(void);
-
-int             diff(const char *file1, const char *file2);
-
-//process scheduling
-int             create_realtime_process(int);
-int             change_process_queue(int pid, int queue);
-void            print_process_info(void);
-void            barber_sleep(void);
-int             customer_arrive(void);
-void            cut_hair(void);
-void            init_rw_lock(void);
-void            get_rw_pattern(int pattern);
-void            critical_section(void);
 
 // swtch.S
 void            swtch(struct context**, struct context*);

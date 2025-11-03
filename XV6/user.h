@@ -23,26 +23,6 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
-void next_palindrome(int num);
-int set_sleep_syscall(int tick);
-int get_system_time(struct rtcdate*);
-
-int make_user(int user_id, const char* password);
-int login(int user_id, const char* password);
-int logout();
-int logs();
-int diff(const char* file1, const char* file2);
-
-
-int create_realtime_process(int);
-int change_process_queue(int pid, int queue);
-int print_process_info(void);
-void barber_sleep(void);
-int customer_arrive(void);
-void cut_hair(void);
-void init_rw_lock(void);
-void get_rw_pattern(int pattern);
-void critical_section(void);
 
 // ulib.c
 int stat(const char*, struct stat*);
@@ -57,5 +37,3 @@ void* memset(void*, int, uint);
 void* malloc(uint);
 void free(void*);
 int atoi(const char*);
-
-int list_programs(void);

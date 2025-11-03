@@ -51,10 +51,6 @@ trap(struct trapframe *tf)
     if(cpuid() == 0){
       acquire(&tickslock);
       ticks++;
-      mycpu()->time_for_roundrobin++;
-      if (myproc() && myproc()->state == RUNNING)
-        myproc()->continous_time_to_run++;
-      aging_mechanism(); //additional
       wakeup(&ticks);
       release(&tickslock);
     }
@@ -106,21 +102,11 @@ trap(struct trapframe *tf)
 
   // Force process to give up CPU on clock tick.
   // If interrupts were on while locks held, would need to check nlock.
-  if (myproc() && myproc()->state == RUNNING && tf->trapno == T_IRQ0 + IRQ_TIMER)
-  {
-    // Handle different scheduling algorithms
-    if (myproc()->cal == MULTILEVEL_FEEDBACK_QUEUE_FIRST_LEVEL && mycpu()->time_for_roundrobin >= 3)
-    {
-      mycpu()->time_for_roundrobin = 0;
-      yield();
-    }
-    else if(myproc()->cal == MULTILEVEL_FEEDBACK_QUEUE_FIRST_LEVEL && mycpu()->time_for_roundrobin < 3)
-    {}
-    else
-      yield();
-  }
+  if(myproc() && myproc()->state == RUNNING &&
+     tf->trapno == T_IRQ0+IRQ_TIMER)
+    yield();
 
-    // Check if the process has been killed since we yielded
-    if (myproc() && myproc()->killed && (tf->cs & 3) == DPL_USER)
-      exit();
-  }
+  // Check if the process has been killed since we yielded
+  if(myproc() && myproc()->killed && (tf->cs&3) == DPL_USER)
+    exit();
+}
