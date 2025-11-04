@@ -29,3 +29,12 @@ SYSCALL(getpid)
 SYSCALL(sbrk)
 SYSCALL(sleep)
 SYSCALL(uptime)
+
+.globl simple_arithmetic_syscall
+simple_arithmetic_syscall:
+  movl 4(%esp), %ebx // a parameter to ebx register
+  movl 8(%esp), %ecx // b parameter to ecx register
+
+  movl $SYS_simple_arithmetic_syscall, %eax // syscall number to eax register
+  int $T_SYSCALL       
+  ret

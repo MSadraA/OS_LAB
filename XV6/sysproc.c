@@ -89,3 +89,19 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+int
+sys_simple_arithmetic_syscall(void)
+{
+  int a, b, result;
+  struct proc *curproc = myproc();
+
+  a = curproc->tf->ebx; // read 'a' from EBX in the current process kernel stack
+  b = curproc->tf->ecx; // read 'b' from ECX in the current process kernel stack
+
+  result = (a + b) * (a - b); // 
+
+  cprintf("Calc: (%d+%d)*(%d-%d)=%d\n", a, b, a, b, result);
+
+  return result;
+}

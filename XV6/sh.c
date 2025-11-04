@@ -23,7 +23,7 @@
 int get_user_programs(char names[MAX_FILES][MAX_NAME]);
 void print_string_array(char arr[MAX_FILES][MAX_NAME], int count);
 int find_matches(char *prefix, char names[MAX_FILES][MAX_NAME],char matches[MAX_FILES][MAX_NAME], int count);
-
+void console_write(char *str);
 
 struct cmd {
   int type;

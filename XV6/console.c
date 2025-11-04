@@ -88,13 +88,16 @@ int being_copied = 0;
 #define INTERNAL_FLAG_CHAR  0x1F 
 
 // Stack
-typedef struct {
+typedef struct Stack_t Stack;
+
+struct Stack_t {
   int stack[INPUT_BUF];
   int size;
-  void (*clear)(struct Stack *self);
-  void (*push)(struct Stack *self, int val);
-  int  (*pop)(struct Stack *self);
-} Stack;
+  void (*clear)(Stack *self);
+  void (*push)(Stack *self, int val);
+  int  (*pop)(Stack *self);
+};
+
 void Stack_clear(Stack *self) {
   self->size = 0;
   memset(self->stack, 0, sizeof(self->stack));
