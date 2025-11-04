@@ -181,6 +181,7 @@ UPROGS=\
 	_stressfs\
 	_arithmatic\
 	_find_sum\
+	_duplicate\
 	_get_pid\
 	_usertests\
 	_wc\
@@ -255,7 +256,7 @@ EXTRA=\
 	mkfs.c ulib.c user.h cat.c echo.c forktest.c grep.c kill.c\
 	ln.c ls.c mkdir.c rm.c stressfs.c usertests.c wc.c zombie.c\
 	printf.c umalloc.c\
-	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\ find_sum.c\ arithmatic.c\ get_pid.c\
+	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\ find_sum.c\ arithmatic.c\ get_pid.c\ duplicate.c\
 	.gdbinit.tmpl gdbutil\
 
 dist:

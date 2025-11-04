@@ -29,6 +29,7 @@ SYSCALL(getpid)
 SYSCALL(sbrk)
 SYSCALL(sleep)
 SYSCALL(uptime)
+SYSCALL(make_duplicate)
 
 .globl simple_arithmetic_syscall
 simple_arithmetic_syscall:

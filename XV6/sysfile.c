@@ -16,6 +16,9 @@
 #include "file.h"
 #include "fcntl.h"
 
+#define MAX_PATH_LENGTH 128
+
+
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
 static int
@@ -440,5 +443,71 @@ sys_pipe(void)
   }
   fd[0] = fd0;
   fd[1] = fd1;
+  return 0;
+}
+
+int
+sys_make_duplicate(void){
+  char *src_path;
+  char dest_path[MAX_PATH_LENGTH];
+  struct inode *ip_src, *ip_dest;
+  char buf[BSIZE];
+
+  if(argstr(0, &src_path) < 0){
+    cprintf("Failed to get source path\n");
+    return 1;
+  }
+
+  int i;
+  // copy src_path to dest_path
+  for(i = 0; src_path[i] && i < MAX_PATH_LENGTH; i++){
+    dest_path[i] = src_path[i];
+  }
+  if(i + 6 > MAX_PATH_LENGTH){
+    cprintf("Path too long\n");
+    return 1;
+  }
+  dest_path[i++] = '.';
+  dest_path[i++] = 'c';
+  dest_path[i++] = 'o';
+  dest_path[i++] = 'p';
+  dest_path[i++] = 'y';
+  dest_path[i] = '\0';
+
+  begin_op();
+  if((ip_src = namei(src_path)) == 0){
+    cprintf("Failed to open source file\n");
+    end_op();
+    return -1;
+  }
+  ilock(ip_src);
+  if((ip_dest = create(dest_path, T_FILE, 0, 0)) == 0){
+    iunlockput(ip_src);
+    cprintf("Failed to create destination file\n");
+    end_op();
+    return 1;
+  }
+  end_op();
+  
+  // copy loop from readi
+  int off = 0;
+  int n;
+  
+  while((n = readi(ip_src, buf, off, BSIZE)) > 0){
+    begin_op();
+    if(writei(ip_dest, buf, off, n) != n){
+      iunlockput(ip_src);
+      iunlockput(ip_dest);
+      cprintf("Failed to write to destination file\n");
+      end_op();
+      return 1;
+    }
+    end_op();
+    off += n;
+  }
+
+  // cleanup
+  iunlockput(ip_src);
+  iunlockput(ip_dest);
   return 0;
 }
