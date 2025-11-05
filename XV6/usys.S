@@ -31,6 +31,7 @@ SYSCALL(sleep)
 SYSCALL(uptime)
 SYSCALL(make_duplicate)
 SYSCALL(show_process_family)
+SYSCALL(grep_syscall)
 
 .globl simple_arithmetic_syscall
 simple_arithmetic_syscall:

@@ -511,3 +511,172 @@ sys_make_duplicate(void){
   iunlockput(ip_dest);
   return 0;
 }
+
+// helper function for string length
+static int
+kstrlen(char *str)
+{
+  int length;
+  // iterate until we hit the null terminator
+  for(length = 0; str[length]; length++)
+    ;
+  return length;
+}
+
+// helper function for finding a substring
+// searches for 'to_find' inside 'main_str'
+static char*
+kstrstr(char *main_str, char *to_find)
+{
+  int find_len = kstrlen(to_find);
+  // an empty string is always found
+  if(find_len == 0)
+    return main_str;
+
+  char *main_ptr = main_str;
+  
+  // iterate over the main string
+  while(*main_ptr){
+    // check for first character match
+    if(*main_ptr == *to_find){
+      char *main_runner = main_ptr;
+      char *find_runner = to_find;
+      
+      // check if the rest of the string matches
+      while(*find_runner && *main_runner == *find_runner){
+        main_runner++;
+        find_runner++;
+      }
+      
+      // if we reached the end of 'to_find', it's a full match
+      if(*find_runner == '\0')
+        return main_ptr; // return the start of the match
+    }
+    main_ptr++;
+  }
+  
+  return 0; // no match
+}
+
+int
+sys_grep_syscall(void){
+  char *keyword_ptr;    // user pointer
+  char *filename_ptr;   // user pointer
+  char *user_buffer;    // user buffer pointer
+  int user_buffer_size;
+  struct inode *ip;
+  
+  char *file_buf = 0;   // kernel buffer for file
+  char *key_word = 0;   // kernel buffer for keyword
+  
+  int result = -1; // default return value (error)
+  char *match = 0;
+  int line_len = 0;
+  char *line_start, *line_end;
+
+  // get all arguments from user
+  if(argstr(0, &keyword_ptr) < 0 || argstr(1, &filename_ptr) < 0  || argint(3, &user_buffer_size) < 0) {
+    cprintf("Failed to get arguments\n");
+    return 1;
+  }
+  if(argptr(2, (void*) &user_buffer, user_buffer_size) < 0){
+    cprintf("Failed to get user buffer\n");
+    return 1;
+  }
+
+  // allocate kernel buffers
+  file_buf = kalloc();
+  key_word = kalloc();
+  if(file_buf == 0 || key_word == 0){
+    cprintf("kalloc failed\n");
+    goto cleanup;
+  }
+
+  // safely copy keyword from user space to kernel buffer
+  if(safestrcpy(key_word, keyword_ptr, PGSIZE) < 0){
+     cprintf("Failed to copy keyword to kernel space\n");
+     goto cleanup;
+  }
+
+  // open source file
+  begin_op();
+  if((ip = namei(filename_ptr)) == 0){
+    cprintf("Failed to open source file\n");
+    end_op();
+    goto cleanup;
+  }
+  ilock(ip);
+
+  // check if file is too large for our buffer
+  if(ip->size > PGSIZE){
+    cprintf("File too large for grep buffer\n");
+    iunlockput(ip);
+    end_op();
+    goto cleanup;
+  }
+  
+  // read entire file into kernel buffer
+  if(readi(ip, file_buf, 0, ip->size) != ip->size){
+    cprintf("Failed to read file\n");
+    iunlockput(ip);
+    end_op();
+    goto cleanup;
+  }
+  file_buf[ip->size] = '\0'; // ensure null terminated
+  
+  iunlockput(ip);
+  end_op();
+
+  // find keyword in file buffer
+  match = kstrstr(file_buf, key_word);
+
+  if(match == 0){
+    // not found
+    goto cleanup;
+  }
+
+  // found it, now find the start of the line
+  line_start = match;
+  while(line_start > file_buf && *(line_start - 1) != '\n'){
+    line_start--;
+  }
+
+  // find the end of the line
+  line_end = match;
+  while(*line_end != '\0' && *line_end != '\n'){
+    line_end++;
+  }
+  
+  line_len = line_end - line_start;
+
+  // check if it fits in the user buffer
+  if(line_len > user_buffer_size - 1){ // -1 for the null char
+    cprintf("User buffer too small\n");
+    goto cleanup;
+  }
+
+  // copy line to user space
+  if(copyout(myproc()->pgdir, (uint)user_buffer, line_start, line_len) < 0){
+    cprintf("copyout to user failed\n");
+    goto cleanup;
+  }
+  
+  // copy null terminator to user space
+  char null_char = '\0';
+  if(copyout(myproc()->pgdir, (uint)(user_buffer + line_len), &null_char, 1) < 0){
+    cprintf("copyout null-terminator failed\n");
+    goto cleanup;
+  }
+  
+  // success! return the line length
+  result = line_len;
+
+cleanup:
+  // free allocated kernel buffers
+  if(key_word)
+    kfree(key_word);
+  if(file_buf)
+    kfree(file_buf);
+
+  return result;
+}
