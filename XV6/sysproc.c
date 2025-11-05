@@ -105,3 +105,14 @@ sys_simple_arithmetic_syscall(void)
 
   return result;
 }
+
+int
+sys_show_process_family(void){
+  int pid;
+
+  if(argint(0, &pid) < 0){
+    cprintf("can't get pid\n");
+    return -1;
+  }
+  return find_proc_family(pid);
+}
