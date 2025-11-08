@@ -13,6 +13,10 @@ struct cpu {
 extern struct cpu cpus[NCPU];
 extern int ncpu;
 
+#define PRIORITY_HIGH   0
+#define PRIORITY_NORMAL 1
+#define PRIORITY_LOW    2
+
 //PAGEBREAK: 17
 // Saved registers for kernel context switches.
 // Don't need to save all the segment registers (%cs, etc),
@@ -52,10 +56,6 @@ struct proc {
 
   int priority;             // [NEW] Process priority
 };
-
-#define PRIORITY_HIGH   0
-#define PRIORITY_NORMAL 1
-#define PRIORITY_LOW    2
 
 // Process memory is laid out contiguously, low addresses first:
 //   text

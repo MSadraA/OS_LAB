@@ -76,8 +76,8 @@ AS = $(TOOLPREFIX)gas
 LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
-CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer
-# CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -fno-omit-frame-pointer
+# CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer
+CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -fno-omit-frame-pointer
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 ASFLAGS = -m32 -gdwarf-2 -Wa,-divide
 # FreeBSD ld wants ``elf_i386_fbsd''
@@ -181,13 +181,14 @@ UPROGS=\
 	_stressfs\
 	_arithmatic\
 	_find_sum\
-	_sys_grep_test\
 	_show_p_family\
 	_duplicate\
 	_get_pid\
 	_usertests\
 	_wc\
 	_zombie\
+	_priority_test\
+# 	_sys_grep_test\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
@@ -254,12 +255,19 @@ qemu-nox-gdb: fs.img xv6.img .gdbinit
 # rename it to rev0 or rev1 or so on and then
 # check in that version.
 
+# EXTRA=\
+# 	mkfs.c ulib.c user.h cat.c echo.c forktest.c grep.c kill.c\
+# 	ln.c ls.c mkdir.c rm.c stressfs.c usertests.c wc.c zombie.c\
+# 	printf.c umalloc.c\ show_p_family.c\ sys_grep_test.c\
+# 	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\ find_sum.c\ arithmatic.c\ get_pid.c\ duplicate.c\
+# 	.gdbinit.tmpl gdbutil\
+
 EXTRA=\
 	mkfs.c ulib.c user.h cat.c echo.c forktest.c grep.c kill.c\
 	ln.c ls.c mkdir.c rm.c stressfs.c usertests.c wc.c zombie.c\
-	printf.c umalloc.c\ show_p_family.c\ sys_grep_test.c\
+	printf.c umalloc.c\ show_p_family.c\
 	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\ find_sum.c\ arithmatic.c\ get_pid.c\ duplicate.c\
-	.gdbinit.tmpl gdbutil\
+	.gdbinit.tmpl gdbutil\ priority_test.c\
 	
 dist:
 	rm -rf dist
