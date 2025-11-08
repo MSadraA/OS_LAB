@@ -134,7 +134,8 @@ static int (*syscalls[])(void) = {
 [SYS_simple_arithmetic_syscall] sys_simple_arithmetic_syscall,
 [SYS_make_duplicate] sys_make_duplicate,
 [SYS_show_process_family] sys_show_process_family,
-[SYS_grep_syscall] sys_grep_syscall
+[SYS_grep_syscall] sys_grep_syscall,
+[SYS_set_priority_syscall] sys_set_priority_syscall
 };
 
 void
