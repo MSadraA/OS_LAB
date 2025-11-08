@@ -6,6 +6,7 @@
 #include "memlayout.h"
 #include "mmu.h"
 #include "proc.h"
+#include "spinlock.h"
 
 int
 sys_fork(void)
@@ -115,4 +116,43 @@ sys_show_process_family(void){
     return -1;
   }
   return find_proc_family(pid);
+}
+
+// [NEW]
+extern struct {
+  struct spinlock lock;
+  struct proc proc[NPROC];
+} ptable;
+
+int 
+sys_set_priority_syscall(void) {
+  int pid, priority;
+  struct proc *p;
+
+  // Read arguments from the syscall stack  
+  if(argint(0, &pid) < 0 || argint(1, &priority) < 0) {
+    cprintf("Invalid arguments for set_priority_syscall\n");
+    return -1;
+  }
+
+  // Validate priority value
+  if(priority < PRIORITY_HIGH || priority > PRIORITY_LOW) {
+    cprintf("Invalid priority value. Use 0 (High), 1 (Normal), or 2 (Low).\n");
+    return -1;
+  }
+
+  acquire(&ptable.lock);
+  
+  // Search for the process with the given PID
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+    if(p->pid == pid) {
+      p->priority = priority;
+      release(&ptable.lock);
+      return 0;
+    }
+  }
+
+  release(&ptable.lock);
+  cprintf("Process with PID %d not found.\n", pid);
+  return -1;
 }

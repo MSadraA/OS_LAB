@@ -24,3 +24,4 @@
 #define SYS_make_duplicate 23
 #define SYS_show_process_family 24
 #define SYS_grep_syscall 25
+#define SYS_set_priority_syscall 26
