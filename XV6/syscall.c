@@ -107,6 +107,7 @@ extern int sys_simple_arithmetic_syscall(void);
 extern int sys_make_duplicate(void);
 extern int sys_show_process_family(void);
 extern int sys_grep_syscall(void);
+extern int sys_set_priority_syscall(void);
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,

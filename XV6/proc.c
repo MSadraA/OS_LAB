@@ -88,6 +88,8 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  p->priority = PRIORITY_NORMAL;
+
 
   release(&ptable.lock);
 
@@ -141,6 +143,9 @@ userinit(void)
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
+
+  // [NEW] Set initial process priority
+  p->priority = PRIORITY_NORMAL;
 
   // this assignment to p->state lets other cores
   // run this process. the acquire forces the above
@@ -209,6 +214,9 @@ fork(void)
   np->cwd = idup(curproc->cwd);
 
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
+
+  // [NEW] Parent Priority to Child
+  np->priority = curproc->priority;
 
   pid = np->pid;
 
@@ -332,23 +340,34 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
+
+    int highest_priority = PRIORITY_LOW; // Start with lowest priority
+    struct proc *highest_proc = 0;
+
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
+      if (p->state == RUNNABLE) {
+        // Check if this process has a higher priority
+        if (p->priority < highest_priority || highest_proc == 0) {
+          highest_priority = p->priority;
+          highest_proc = p;
+        }
+      }
 
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
+      if (highest_proc) {
+        // Switch to chosen process.  It is the process's job
+        // to release ptable.lock and then reacquire it
+        // before jumping back to us.
+        c->proc = p;
+        switchuvm(p);
+        p->state = RUNNING;
 
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
+        swtch(&(c->scheduler), p->context);
+        switchkvm();
 
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
+        // Process is done running for now.
+        // It should have changed its p->state before coming back.
+        c->proc = 0;
+      }
     }
     release(&ptable.lock);
 
