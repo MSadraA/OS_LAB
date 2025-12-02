@@ -116,7 +116,9 @@ trap(struct trapframe *tf)
           yield();
        }
        else if (c->type == CPU_P_CORE) {
-         // For P-cores, we can implement a different scheduling policy if needed.
+         if(check_fcfs_preemption()) {
+           yield();
+         }
        }
       // ===========================
      }

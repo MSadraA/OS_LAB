@@ -123,6 +123,7 @@ void            yield(void);
 int             find_proc_family(int);
 int             set_priority_syscall_Helper(int, int);
 void            print_process_info(void);
+int             check_fcfs_preemption(void);
 
 
 // swtch.S

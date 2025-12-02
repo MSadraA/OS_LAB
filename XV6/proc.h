@@ -71,7 +71,9 @@ struct proc {
   int priority;             // [NEW] Process priority
 
   struct proc *next;      // CHANGE cpu queue
-  int cpu_id;        // CHANGE cpu queue last used cpu
+  int cpu_id;        // CHANGE cpu queue : last used cpu
+
+  uint arrival_time_to_system; // CHANGE FCFS algorithm
 };
 
 // Process memory is laid out contiguously, low addresses first:

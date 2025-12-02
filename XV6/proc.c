@@ -107,7 +107,7 @@ found:
   p->next = 0;
   p->cpu_id = 0; // Not yet assigned to any CPU
   // ==============================
-
+  p->arrival_time_to_system = ticks; // CHANGE FCFS algorithm
 
   release(&ptable.lock);
 
@@ -135,30 +135,64 @@ found:
   return p;
 }
 
-// ====== CHANGE cpu queue ======
-// helper function to work with cpu run queue
+// ====== CHANGE helper function to work with cpu run queue =====
+void
+push_cpu_sorted(struct cpu *c, struct proc *p) // FCFS: insert process based on arrival time
+{
+  struct proc *curr;
+  struct proc *prev = 0;
+
+  // if it's the first process in the queue
+  if(c->runq_head == 0 || p->arrival_time_to_system < c->runq_head->arrival_time_to_system){
+    p->next = c->runq_head;
+    c->runq_head = p;
+    if(c->runq_tail == 0) 
+       c->runq_tail = p;
+  } 
+  else {
+    curr = c->runq_head;
+    while(curr && curr->arrival_time_to_system <= p->arrival_time_to_system){
+      prev = curr;
+      curr = curr->next;
+    }
+    
+    p->next = curr;
+    prev->next = p;
+    
+    // if it's the last process in the queue
+    if(curr == 0)
+      c->runq_tail = p;
+  }
+  c->proc_count++;
+}
+
 void
 push_cpu(struct cpu *c, struct proc *p)
 {
   acquire(&c->queuelock);
-  
-  p->next = 0;
-  p->cpu_id = c - cpus; // index of cpu in cpus array
 
-  if(c->runq_head == 0){
-    c->runq_head = p;
-    c->runq_tail = p;
-  } else {
-    c->runq_tail->next = p;
-    c->runq_tail = p;
+  p->cpu_id = c - cpus; 
+
+  if(c->type == CPU_P_CORE){
+    push_cpu_sorted(c, p);
+  }
+  else{ // FIFO policy for rr algorithm
+    p->next = 0;
+    if(c->runq_head == 0){
+      c->runq_head = p;
+      c->runq_tail = p;
+    } else {
+      c->runq_tail->next = p;
+      c->runq_tail = p;
+    }
+    c->proc_count++;
   }
   
-  c->proc_count++;
   release(&c->queuelock);
 }
 
 struct proc*
-pop_cpu(struct cpu *c)
+pop_cpu(struct cpu *c) // pop from head works for both FCFS and RR
 {
   struct proc *p = 0;
   
@@ -179,7 +213,7 @@ pop_cpu(struct cpu *c)
 }
 
 struct cpu*
-find_best_ecore(void)
+find_best_ecore(void) // for load balancing among E-cores
 {
   int min_procs = NPROC;
   struct cpu *best_cpu = 0;
@@ -201,7 +235,7 @@ find_best_ecore(void)
   if (best_cpu == 0) return &cpus[0];
   return best_cpu;
 }
-// ==============================
+// =============================================================
 
 
 //PAGEBREAK: 32
@@ -464,35 +498,27 @@ wait(void)
 //   }
 // }
 
-// === CHANGE RR algorithm ===
-void
-scheduler_rr(struct cpu *c)
+
+// === CHANGE for FCSFS algorithm ===
+int
+check_fcfs_preemption(void)
 {
-  struct proc *p;
+  struct cpu *c = mycpu();
+  struct proc *running_p = myproc();
+  int should_yield = 0;
 
-  // Try to get a process from this CPU's run queue
-  p = pop_cpu(c);
-
-  if(p){
-    c->proc = p;
-    
-    // Switch to user virtual memory
-    switchuvm(p);
-
-    acquire(&ptable.lock);
-    p->state = RUNNING;
-    
-    // Context switch to the process
-    swtch(&(c->scheduler), p->context);
-    
-    // Process is done running for now (yielded or exited)
-    switchkvm();
-    c->proc = 0;
-    release(&ptable.lock);
+  acquire(&c->queuelock);
+  
+  if(c->runq_head != 0 && c->runq_head->arrival_time_to_system < running_p->arrival_time_to_system){
+    should_yield = 1;
   }
+  
+  release(&c->queuelock);
+  return should_yield;
 }
-// ===========================
+// ==============================
 
+// === CHANGE general scheduler for both algorithms ===
 void
 scheduler(void)
 {
@@ -503,15 +529,31 @@ scheduler(void)
     sti();
 
     // Check CPU type and call appropriate scheduler
-    if (c->type == CPU_E_CORE) {
-        scheduler_rr(c);
-    } 
-    else {
-        // should implement scheduler for P_CORE here
-        scheduler_rr(c); 
-    }
+    struct proc *p;
+
+    // Try to get a process from this CPU's run queue
+    p = pop_cpu(c);
+
+      if(p){
+        c->proc = p;
+
+        // Switch to user virtual memory
+        switchuvm(p);
+
+        acquire(&ptable.lock);
+        p->state = RUNNING;
+
+        // Context switch to the process
+        swtch(&(c->scheduler), p->context);
+
+        // Process is done running for now (yielded or exited)
+        switchkvm();
+        c->proc = 0;
+        release(&ptable.lock);
+      }
   }
 }
+// =======================================================
 
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores
@@ -815,7 +857,7 @@ print_process_info(void)
   struct proc *p;
   int i;
 
-  acquire(&print_lock); // جلوگیری از تداخل چاپ‌های همزمان
+  acquire(&print_lock);
 
   // 1. Acquire ALL locks first to freeze the state
   acquire(&ptable.lock);
