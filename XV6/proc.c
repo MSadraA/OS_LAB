@@ -14,6 +14,8 @@ struct {
 
 static struct proc *initproc;
 
+struct spinlock print_lock;
+
 int nextpid = 1;
 extern void forkret(void);
 extern void trapret(void);
@@ -24,6 +26,16 @@ void
 pinit(void)
 {
   initlock(&ptable.lock, "ptable");
+  initlock(&print_lock, "print_lock"); // for debug systemcalls
+
+  // ====== CHANGE cpu queue ======
+  for(int i = 0; i < NCPU; i++){
+    initlock(&cpus[i].queuelock, "cpu_runq");
+    cpus[i].runq_head = 0;
+    cpus[i].runq_tail = 0;
+    cpus[i].proc_count = 0;
+  }
+  // ==============================
 }
 
 // Must be called with interrupts disabled
@@ -90,6 +102,11 @@ found:
   p->pid = nextpid++;
   p->priority = PRIORITY_NORMAL;
 
+  // ====== CHANGE cpu queue ======
+  p->next = 0;
+  p->cpu_id = 0; // Not yet assigned to any CPU
+  // ==============================
+
 
   release(&ptable.lock);
 
@@ -116,6 +133,75 @@ found:
 
   return p;
 }
+
+// ====== CHANGE cpu queue ======
+// helper function to work with cpu run queue
+void
+push_cpu(struct cpu *c, struct proc *p)
+{
+  acquire(&c->queuelock);
+  
+  p->next = 0;
+  p->cpu_id = c - cpus; // index of cpu in cpus array
+
+  if(c->runq_head == 0){
+    c->runq_head = p;
+    c->runq_tail = p;
+  } else {
+    c->runq_tail->next = p;
+    c->runq_tail = p;
+  }
+  
+  c->proc_count++;
+  release(&c->queuelock);
+}
+
+struct proc*
+pop_cpu(struct cpu *c)
+{
+  struct proc *p = 0;
+  
+  acquire(&c->queuelock);
+  
+  if(c->runq_head != 0){
+    p = c->runq_head;
+    c->runq_head = p->next;
+    
+    if(c->runq_head == 0)
+      c->runq_tail = 0;
+      
+    c->proc_count--;
+  }
+  
+  release(&c->queuelock);
+  return p;
+}
+
+struct cpu*
+find_best_ecore(void)
+{
+  int min_procs = NPROC;
+  struct cpu *best_cpu = 0;
+
+  for(int i = 0; i < ncpu; i++) {
+    if (cpus[i].type == CPU_E_CORE) {
+      
+      acquire(&cpus[i].queuelock);
+      int count = cpus[i].proc_count;
+      release(&cpus[i].queuelock);
+
+      if (count < min_procs) {
+        min_procs = count;
+        best_cpu = &cpus[i];
+      }
+    }
+  }
+  
+  if (best_cpu == 0) return &cpus[0];
+  return best_cpu;
+}
+// ==============================
+
 
 //PAGEBREAK: 32
 // Set up first user process.
@@ -147,13 +233,16 @@ userinit(void)
   // [NEW] Set initial process priority
   p->priority = PRIORITY_NORMAL;
 
+  
   // this assignment to p->state lets other cores
   // run this process. the acquire forces the above
   // writes to be visible, and the lock is also needed
   // because the assignment might not be atomic.
   acquire(&ptable.lock);
-
+  
   p->state = RUNNABLE;
+  struct cpu *best_cpu = find_best_ecore(); // CHANGE cpu queue
+  push_cpu(best_cpu, p); // CHANGE cpu queue
 
   release(&ptable.lock);
 }
@@ -223,6 +312,8 @@ fork(void)
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
+  struct cpu *best_cpu = find_best_ecore(); // CHANGE cpu queue
+  push_cpu(best_cpu, np); // CHANGE cpu queue
 
   release(&ptable.lock);
 
@@ -327,6 +418,51 @@ wait(void)
 //  - swtch to start running that process
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
+// void
+// scheduler(void)
+// {
+//   struct proc *p;
+//   struct cpu *c = mycpu();
+//   c->proc = 0;
+  
+//   for(;;){
+//     // Enable interrupts on this processor.
+//     sti();
+
+//     acquire(&ptable.lock);
+
+//     struct proc *chosen_proc = 0;
+//     int lowest_priority_value = PRIORITY_LOW + 1; 
+
+//     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+//       if (p->state != RUNNABLE) 
+//         continue;
+        
+//       // Check if this process has a higher priority (lower numerical value)
+//       if (p->priority < lowest_priority_value) {
+//         lowest_priority_value = p->priority;
+//         chosen_proc = p; 
+//       }
+//     }
+    
+//     if (chosen_proc) {
+//       p = chosen_proc;
+      
+//       // Switch to chosen process.
+//       c->proc = p;
+//       switchuvm(p);
+//       p->state = RUNNING;
+
+//       swtch(&(c->scheduler), p->context);
+//       switchkvm();
+
+//       c->proc = 0;
+//     } 
+    
+//     release(&ptable.lock);
+//   }
+// }
+
 void
 scheduler(void)
 {
@@ -335,40 +471,23 @@ scheduler(void)
   c->proc = 0;
   
   for(;;){
-    // Enable interrupts on this processor.
     sti();
 
-    acquire(&ptable.lock);
+    p = pop_cpu(c);
 
-    struct proc *chosen_proc = 0;
-    int lowest_priority_value = PRIORITY_LOW + 1; 
-
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if (p->state != RUNNABLE) 
-        continue;
-        
-      // Check if this process has a higher priority (lower numerical value)
-      if (p->priority < lowest_priority_value) {
-        lowest_priority_value = p->priority;
-        chosen_proc = p; 
-      }
-    }
-    
-    if (chosen_proc) {
-      p = chosen_proc;
-      
-      // Switch to chosen process.
+    if(p){
       c->proc = p;
       switchuvm(p);
+
+      acquire(&ptable.lock);
       p->state = RUNNING;
-
+      
       swtch(&(c->scheduler), p->context);
+      
       switchkvm();
-
       c->proc = 0;
-    } 
-    
-    release(&ptable.lock);
+      release(&ptable.lock);
+    }
   }
 }
 
@@ -404,6 +523,7 @@ yield(void)
 {
   acquire(&ptable.lock);  //DOC: yieldlock
   myproc()->state = RUNNABLE;
+  push_cpu(mycpu(), myproc()); // CHANGE cpu queue
   sched();
   release(&ptable.lock);
 }
@@ -476,9 +596,22 @@ wakeup1(void *chan)
 {
   struct proc *p;
 
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->state == SLEEPING && p->chan == chan){
       p->state = RUNNABLE;
+
+      // ===== CHANGE cpu queue ======
+      if(p->cpu_id >= 0 && p->cpu_id < ncpu) { // we try to put back to the same cpu queue
+        push_cpu(&cpus[p->cpu_id], p);
+      }
+      else {
+        struct cpu *best_cpu = find_best_ecore();
+        push_cpu(best_cpu, p);
+        // push_cpu(mycpu(), p);
+      }
+      // ==============================
+    }
+  }
 }
 
 // Wake up all processes sleeping on chan.
@@ -503,8 +636,19 @@ kill(int pid)
     if(p->pid == pid){
       p->killed = 1;
       // Wake process from sleep if necessary.
-      if(p->state == SLEEPING)
+      if(p->state == SLEEPING){
         p->state = RUNNABLE;
+
+        // ===== CHANGE cpu queue ======
+        if(p->cpu_id >= 0 && p->cpu_id < ncpu)
+          push_cpu(&cpus[p->cpu_id], p);
+        else{
+          struct cpu *best_cpu = find_best_ecore();
+          push_cpu(best_cpu, p);
+          // push_cpu(mycpu(), p);
+        }
+        // ==============================
+      }
       release(&ptable.lock);
       return 0;
     }
@@ -533,6 +677,8 @@ procdump(void)
   char *state;
   uint pc[10];
 
+  cprintf("\nPID\tState\tName\tCPU\tPriority\n");
+
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state == UNUSED)
       continue;
@@ -540,7 +686,9 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    cprintf("%d %s %s", p->pid, state, p->name);
+    
+    cprintf("%d\t%s\t%s\t%d\t%d", p->pid, state, p->name, p->cpu_id, p->priority);
+
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
       for(i=0; i<10 && pc[i] != 0; i++)
@@ -622,4 +770,57 @@ set_priority_syscall_Helper(int pid, int priority) {
   release(&ptable.lock);
   cprintf("Process with PID %d not found.\n", pid);
   return -1;
+}
+
+
+
+// ===== Debug systemcalls ======
+void
+print_process_info(void)
+{
+  struct proc *p;
+  int i;
+
+  acquire(&print_lock);
+  // print CPU queue status
+  cprintf("\n--- CPU Queues Status ---\n");
+  for(i = 0; i < ncpu; i++){
+    acquire(&cpus[i].queuelock);
+    int head_pid = cpus[i].runq_head ? cpus[i].runq_head->pid : -1;
+    int tail_pid = cpus[i].runq_tail ? cpus[i].runq_tail->pid : -1;
+    cprintf("CPU %d: Count=%d, Head_PID=%d, Tail_PID=%d\n", 
+            i, cpus[i].proc_count, head_pid, tail_pid);
+    release(&cpus[i].queuelock);
+  }
+
+  // 2. Print status of each process
+  static char *states[] = {
+  [UNUSED]    "unused",
+  [EMBRYO]    "embryo",
+  [SLEEPING]  "sleep ",
+  [RUNNABLE]  "runble",
+  [RUNNING]   "run   ",
+  [ZOMBIE]    "zombie"
+  };
+
+  cprintf("\n--- Process Table ---\n");
+  cprintf("PID\tState\tName\tCPU\tNext_PID\n");
+  
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->state == UNUSED) continue;
+    
+    // Find the PID of the next process in the queue
+    int next_pid = (p->next) ? p->next->pid : -1;
+    
+    cprintf("%d\t%s\t%s\t%d\t%d\n", 
+            p->pid, 
+            states[p->state], 
+            p->name, 
+            p->cpu_id, 
+            next_pid);
+  }
+  release(&ptable.lock);
+
+  release(&print_lock);
 }

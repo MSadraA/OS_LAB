@@ -1,3 +1,8 @@
+#include "spinlock.h"
+
+#define CPU_E_CORE 0
+#define CPU_P_CORE 1
+
 // Per-CPU state
 struct cpu {
   uchar apicid;                // Local APIC ID
@@ -8,6 +13,13 @@ struct cpu {
   int ncli;                    // Depth of pushcli nesting.
   int intena;                  // Were interrupts enabled before pushcli?
   struct proc *proc;           // The process running on this cpu or null
+
+  struct proc *runq_head; // CHANGE cpu queue
+  struct proc *runq_tail; // CHANGE cpu queue
+  struct spinlock queuelock; // CHANGE cpu queue
+  int proc_count;        // CHANGE cpu queue
+
+  int type; // CHANGE cpu type (E_CORE or P_CORE)
 };
 
 extern struct cpu cpus[NCPU];
@@ -55,6 +67,9 @@ struct proc {
   char name[16];               // Process name (debugging)
 
   int priority;             // [NEW] Process priority
+
+  struct proc *next;      // CHANGE cpu queue
+  int cpu_id;        // CHANGE cpu queue
 };
 
 // Process memory is laid out contiguously, low addresses first:

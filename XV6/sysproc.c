@@ -129,3 +129,9 @@ sys_set_priority_syscall(void) {
 
   return set_priority_syscall_Helper(pid, priority);
 }
+
+int
+sys_print_process_info(void) {
+  print_process_info();
+  return 0;
+}

@@ -108,6 +108,15 @@ mpinit(void)
       proc = (struct mpproc*)p;
       if(ncpu < NCPU) {
         cpus[ncpu].apicid = proc->apicid;  // apicid may differ from ncpu
+
+        // == CHANGE initialize cpu type ==
+        if (ncpu % 2 == 0) {
+            cpus[ncpu].type = CPU_E_CORE;
+        } else {
+            cpus[ncpu].type = CPU_P_CORE;
+        }
+        // ================================
+
         ncpu++;
       }
       p += sizeof(struct mpproc);

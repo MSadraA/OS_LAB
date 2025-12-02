@@ -25,3 +25,6 @@
 #define SYS_show_process_family 24
 #define SYS_grep_syscall 25
 #define SYS_set_priority_syscall 26
+
+// Debug systemcalls for scheduler and cpu queue
+#define SYS_print_process_info 27

@@ -108,6 +108,7 @@ extern int sys_make_duplicate(void);
 extern int sys_show_process_family(void);
 extern int sys_grep_syscall(void);
 extern int sys_set_priority_syscall(void);
+extern int sys_print_process_info(void);
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -135,7 +136,8 @@ static int (*syscalls[])(void) = {
 [SYS_make_duplicate] sys_make_duplicate,
 [SYS_show_process_family] sys_show_process_family,
 [SYS_grep_syscall] sys_grep_syscall,
-[SYS_set_priority_syscall] sys_set_priority_syscall
+[SYS_set_priority_syscall] sys_set_priority_syscall,
+[SYS_print_process_info] sys_print_process_info
 };
 
 void

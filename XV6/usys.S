@@ -33,6 +33,7 @@ SYSCALL(make_duplicate)
 SYSCALL(show_process_family)
 SYSCALL(grep_syscall)
 SYSCALL(set_priority_syscall)
+SYSCALL(print_process_info)
 
 .globl simple_arithmetic_syscall
 simple_arithmetic_syscall:

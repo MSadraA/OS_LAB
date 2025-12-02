@@ -121,6 +121,9 @@ int             wait(void);
 void            wakeup(void*);
 void            yield(void);
 int             find_proc_family(int);
+int             set_priority_syscall_Helper(int, int);
+void            print_process_info(void);
+
 
 // swtch.S
 void            swtch(struct context**, struct context*);
