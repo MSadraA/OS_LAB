@@ -34,6 +34,7 @@ pinit(void)
     cpus[i].runq_head = 0;
     cpus[i].runq_tail = 0;
     cpus[i].proc_count = 0;
+    cpus[i].rr_ticks = 0; // CHANGE RR algorithm
   }
   // ==============================
 }
@@ -463,30 +464,51 @@ wait(void)
 //   }
 // }
 
+// === CHANGE RR algorithm ===
+void
+scheduler_rr(struct cpu *c)
+{
+  struct proc *p;
+
+  // Try to get a process from this CPU's run queue
+  p = pop_cpu(c);
+
+  if(p){
+    c->proc = p;
+    
+    // Switch to user virtual memory
+    switchuvm(p);
+
+    acquire(&ptable.lock);
+    p->state = RUNNING;
+    
+    // Context switch to the process
+    swtch(&(c->scheduler), p->context);
+    
+    // Process is done running for now (yielded or exited)
+    switchkvm();
+    c->proc = 0;
+    release(&ptable.lock);
+  }
+}
+// ===========================
+
 void
 scheduler(void)
 {
-  struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
   
   for(;;){
     sti();
 
-    p = pop_cpu(c);
-
-    if(p){
-      c->proc = p;
-      switchuvm(p);
-
-      acquire(&ptable.lock);
-      p->state = RUNNING;
-      
-      swtch(&(c->scheduler), p->context);
-      
-      switchkvm();
-      c->proc = 0;
-      release(&ptable.lock);
+    // Check CPU type and call appropriate scheduler
+    if (c->type == CPU_E_CORE) {
+        scheduler_rr(c);
+    } 
+    else {
+        // should implement scheduler for P_CORE here
+        scheduler_rr(c); 
     }
   }
 }
@@ -600,16 +622,28 @@ wakeup1(void *chan)
     if(p->state == SLEEPING && p->chan == chan){
       p->state = RUNNABLE;
 
-      // ===== CHANGE cpu queue ======
-      if(p->cpu_id >= 0 && p->cpu_id < ncpu) { // we try to put back to the same cpu queue
-        push_cpu(&cpus[p->cpu_id], p);
+      // ===== CHANGE cpu queue (Hybrid Wakeup) ======
+
+      // 1. Check if cpu_id is valid
+      if(p->cpu_id >= 0 && p->cpu_id < ncpu) {
+        struct cpu *prev_cpu = &cpus[p->cpu_id];
+        
+        // If it was on P-CORE -> Keep Affinity (Stay on P-Core)
+        if(prev_cpu->type == CPU_P_CORE){
+           push_cpu(prev_cpu, p);
+        }
+        // If it was on E-CORE -> Load Balance (Find best E-Core)
+        else {
+           struct cpu *best_cpu = find_best_ecore();
+           push_cpu(best_cpu, p);
+        }
       }
       else {
+        // 2. Invalid CPU ID -> Treat as new/E-Core process
         struct cpu *best_cpu = find_best_ecore();
         push_cpu(best_cpu, p);
-        // push_cpu(mycpu(), p);
       }
-      // ==============================
+      // ==============================================
     }
   }
 }
@@ -781,19 +815,25 @@ print_process_info(void)
   struct proc *p;
   int i;
 
-  acquire(&print_lock);
-  // print CPU queue status
-  cprintf("\n--- CPU Queues Status ---\n");
+  acquire(&print_lock); // جلوگیری از تداخل چاپ‌های همزمان
+
+  // 1. Acquire ALL locks first to freeze the state
+  acquire(&ptable.lock);
   for(i = 0; i < ncpu; i++){
     acquire(&cpus[i].queuelock);
-    int head_pid = cpus[i].runq_head ? cpus[i].runq_head->pid : -1;
-    int tail_pid = cpus[i].runq_tail ? cpus[i].runq_tail->pid : -1;
-    cprintf("CPU %d: Count=%d, Head_PID=%d, Tail_PID=%d\n", 
-            i, cpus[i].proc_count, head_pid, tail_pid);
-    release(&cpus[i].queuelock);
   }
 
-  // 2. Print status of each process
+  // 2. Print CPU Queues Status
+  cprintf("\n--- CPU Queues Status (FROZEN STATE) ---\n");
+  for(i = 0; i < ncpu; i++){
+    struct cpu *c = &cpus[i];
+    int head_pid = c->runq_head ? c->runq_head->pid : -1;
+    int tail_pid = c->runq_tail ? c->runq_tail->pid : -1;
+    cprintf("CPU %d: Count=%d, Head_PID=%d, Tail_PID=%d\n", 
+            i, c->proc_count, head_pid, tail_pid);
+  }
+
+  // 3. Print Process Table
   static char *states[] = {
   [UNUSED]    "unused",
   [EMBRYO]    "embryo",
@@ -806,11 +846,10 @@ print_process_info(void)
   cprintf("\n--- Process Table ---\n");
   cprintf("PID\tState\tName\tCPU\tNext_PID\n");
   
-  acquire(&ptable.lock);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state == UNUSED) continue;
     
-    // Find the PID of the next process in the queue
+    // Now we can safely read p->next because queue locks are held
     int next_pid = (p->next) ? p->next->pid : -1;
     
     cprintf("%d\t%s\t%s\t%d\t%d\n", 
@@ -819,6 +858,11 @@ print_process_info(void)
             p->name, 
             p->cpu_id, 
             next_pid);
+  }
+
+  // 4. Release ALL locks
+  for(i = 0; i < ncpu; i++){
+    release(&cpus[i].queuelock);
   }
   release(&ptable.lock);
 

@@ -14,6 +14,9 @@ extern uint vectors[];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
 
+const int RR_TIME_QUANTUM = 3; // 3 ticks equivalent to 30 ms
+
+
 void
 tvinit(void)
 {
@@ -103,10 +106,23 @@ trap(struct trapframe *tf)
   // Force process to give up CPU on clock tick.
   // If interrupts were on while locks held, would need to check nlock.
   if(myproc() && myproc()->state == RUNNING &&
-     tf->trapno == T_IRQ0+IRQ_TIMER)
-    yield();
+     tf->trapno == T_IRQ0+IRQ_TIMER){
+      // === CHANGE RR algorithm ===
+      struct cpu *c = mycpu();
+      c->rr_ticks++;
+      // cprintf("[CPU %d] PID %d (E-Core) | Tick: %d\n", cpuid(), myproc()->pid, c->rr_ticks);
+       if(c->type == CPU_E_CORE && c->rr_ticks >= RR_TIME_QUANTUM){
+          c->rr_ticks = 0;
+          yield();
+       }
+       else if (c->type == CPU_P_CORE) {
+         // For P-cores, we can implement a different scheduling policy if needed.
+       }
+      // ===========================
+     }
 
   // Check if the process has been killed since we yielded
   if(myproc() && myproc()->killed && (tf->cs&3) == DPL_USER)
     exit();
 }
+

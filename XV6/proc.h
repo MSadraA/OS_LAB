@@ -20,6 +20,8 @@ struct cpu {
   int proc_count;        // CHANGE cpu queue
 
   int type; // CHANGE cpu type (E_CORE or P_CORE)
+
+  int rr_ticks; // CHANGE RR algorithm
 };
 
 extern struct cpu cpus[NCPU];
@@ -69,7 +71,7 @@ struct proc {
   int priority;             // [NEW] Process priority
 
   struct proc *next;      // CHANGE cpu queue
-  int cpu_id;        // CHANGE cpu queue
+  int cpu_id;        // CHANGE cpu queue last used cpu
 };
 
 // Process memory is laid out contiguously, low addresses first:
