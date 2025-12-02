@@ -851,62 +851,135 @@ set_priority_syscall_Helper(int pid, int priority) {
 
 
 // ===== Debug systemcalls ======
+// Helper function to calculate number of digits for formatting
+// Helper to get number of digits
+int get_len(int val) {
+  if (val == 0) return 1;
+  int cnt = 0;
+  if (val < 0) { val = -val; cnt++; }
+  for (; val > 0; val /= 10) cnt++;
+  return cnt;
+}
+
+// Process states
+static char *p_states[] = {
+  [UNUSED]    "UNUSED",
+  [EMBRYO]    "EMBRYO",
+  [SLEEPING]  "SLEEP ",
+  [RUNNABLE]  "RUNBLE",
+  [RUNNING]   "RUN   ",
+  [ZOMBIE]    "ZOMBIE"
+};
+
 void
 print_process_info(void)
 {
   struct proc *p;
-  int i;
+  int j, c_id;
+  int now = ticks;
 
   acquire(&print_lock);
 
-  // 1. Acquire ALL locks first to freeze the state
+  // Lock ptable and all queues to freeze state
   acquire(&ptable.lock);
-  for(i = 0; i < ncpu; i++){
-    acquire(&cpus[i].queuelock);
+  for(j = 0; j < ncpu; j++){
+    acquire(&cpus[j].queuelock);
   }
 
-  // 2. Print CPU Queues Status
-  cprintf("\n--- CPU Queues Status (FROZEN STATE) ---\n");
-  for(i = 0; i < ncpu; i++){
-    struct cpu *c = &cpus[i];
-    int head_pid = c->runq_head ? c->runq_head->pid : -1;
-    int tail_pid = c->runq_tail ? c->runq_tail->pid : -1;
-    cprintf("CPU %d: Count=%d, Head_PID=%d, Tail_PID=%d\n", 
-            i, c->proc_count, head_pid, tail_pid);
-  }
-
-  // 3. Print Process Table
-  static char *states[] = {
-  [UNUSED]    "unused",
-  [EMBRYO]    "embryo",
-  [SLEEPING]  "sleep ",
-  [RUNNABLE]  "runble",
-  [RUNNING]   "run   ",
-  [ZOMBIE]    "zombie"
-  };
-
-  cprintf("\n--- Process Table ---\n");
-  cprintf("PID\tState\tName\tCPU\tNext_PID\n");
+  // --- Part 1: CPU Queues ---
+  cprintf("\n--- CPU QUEUES (Tick: %d) ---\n", now);
   
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if(p->state == UNUSED) continue;
+  for(j = 0; j < ncpu; j++){
+    struct cpu *c = &cpus[j];
+    char *mode = (c->type == CPU_E_CORE) ? "RR" : "FCFS";
     
-    // Now we can safely read p->next because queue locks are held
-    int next_pid = (p->next) ? p->next->pid : -1;
+    cprintf("CPU %d [%s] cnt=%d: ", j, mode, c->proc_count);
     
-    cprintf("%d\t%s\t%s\t%d\t%d\n", 
-            p->pid, 
-            states[p->state], 
-            p->name, 
-            p->cpu_id, 
-            next_pid);
+    if(c->runq_head == 0){
+      cprintf("(empty)");
+    } else {
+      // Print queue linked list
+      struct proc *tmp = c->runq_head;
+      cprintf("Head: ");
+      while(tmp){
+        cprintf("%d", tmp->pid);
+        if(tmp->next) cprintf("->");
+        tmp = tmp->next;
+      }
+      cprintf(" :Tail");
+    }
+    cprintf("\n");
   }
 
-  // 4. Release ALL locks
-  for(i = 0; i < ncpu; i++){
-    release(&cpus[i].queuelock);
+  // --- Part 2: Process Details ---
+  cprintf("\n--- Process Details ---\n");
+  cprintf("PID    State     Name         CPU        Algo    ArrTime    Age\n");
+  cprintf("---------------------------------------------------------------\n");
+
+  // Iterate per CPU
+  for (c_id = 0; c_id < ncpu; c_id++) {
+      
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        if(p->state == UNUSED) continue;
+        if(p->cpu_id != c_id) continue; 
+
+        // PID
+        cprintf("%d", p->pid);
+        for(int k=0; k < 7 - get_len(p->pid); k++) cprintf(" ");
+
+        // State
+        char *st = (p->state >= 0 && p->state < 6) ? p_states[p->state] : "???";
+        cprintf("%s    ", st);
+
+        // Name
+        cprintf("%s", p->name);
+        int len = strlen(p->name);
+        for(int k=0; k < 13 - len; k++) cprintf(" ");
+
+        // CPU ID
+        cprintf("%d          ", p->cpu_id);
+
+        // Algo Name
+        char *alg = (cpus[p->cpu_id].type == CPU_E_CORE) ? "RR" : "FCFS";
+        cprintf("%s", alg);
+        for(int k=0; k < 8 - strlen(alg); k++) cprintf(" ");
+
+        // Arrival
+        cprintf("%d", p->arrival_time_to_system);
+        for(int k=0; k < 11 - get_len(p->arrival_time_to_system); k++) cprintf(" ");
+
+        // Age
+        cprintf("%d\n", now - p->arrival_time_to_system);
+      }
+  }
+
+  // Print processes without CPU (just in case)
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state == UNUSED) continue;
+      if(p->cpu_id >= 0 && p->cpu_id < ncpu) continue;
+
+      cprintf("%d", p->pid);
+      for(int k=0; k < 7 - get_len(p->pid); k++) cprintf(" ");
+      
+      char *st = (p->state >= 0 && p->state < 6) ? p_states[p->state] : "???";
+      cprintf("%s    ", st);
+      
+      cprintf("%s", p->name);
+      for(int k=0; k < 13 - strlen(p->name); k++) cprintf(" ");
+      
+      cprintf("Global     -       ");
+      
+      cprintf("%d", p->arrival_time_to_system);
+      for(int k=0; k < 11 - get_len(p->arrival_time_to_system); k++) cprintf(" ");
+      cprintf("%d\n", now - p->arrival_time_to_system);
+  }
+  
+  cprintf("---------------------------------------------------------------\n");
+
+  // Release locks
+  for(j = 0; j < ncpu; j++){
+    release(&cpus[j].queuelock);
   }
   release(&ptable.lock);
-
   release(&print_lock);
 }
