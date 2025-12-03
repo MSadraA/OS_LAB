@@ -22,6 +22,8 @@ extern void trapret(void);
 
 static void wakeup1(void *chan);
 
+const int THRESHOLD_LOAD_BALANCE = 3; // for load balancing
+
 void
 pinit(void)
 {
@@ -35,6 +37,7 @@ pinit(void)
     cpus[i].runq_tail = 0;
     cpus[i].proc_count = 0;
     cpus[i].rr_ticks = 0; // CHANGE RR algorithm
+    cpus[i].monitor_ticks = 0; // CHANGE load balancing
   }
   // ==============================
 }
@@ -235,6 +238,30 @@ find_best_ecore(void) // for load balancing among E-cores
   if (best_cpu == 0) return &cpus[0];
   return best_cpu;
 }
+
+struct cpu*
+find_best_pcore(void) // for load balancing among P-cores
+{
+  int min_procs = NPROC;
+  struct cpu *best_cpu = 0;
+
+  for(int i = 0; i < ncpu; i++) {
+    if (cpus[i].type == CPU_P_CORE) {
+      
+      acquire(&cpus[i].queuelock);
+      int count = cpus[i].proc_count;
+      release(&cpus[i].queuelock);
+
+      if (count < min_procs) {
+        min_procs = count;
+        best_cpu = &cpus[i];
+      }
+    }
+  }
+  
+  // if (best_cpu == 0) return &cpus[0];
+  return best_cpu;
+}
 // =============================================================
 
 
@@ -347,6 +374,7 @@ fork(void)
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
+  // struct cpu *best_cpu = find_best_pcore(); // test preemption for FCFS
   struct cpu *best_cpu = find_best_ecore(); // CHANGE cpu queue
   push_cpu(best_cpu, np); // CHANGE cpu queue
 
@@ -516,7 +544,38 @@ check_fcfs_preemption(void)
   release(&c->queuelock);
   return should_yield;
 }
-// ==============================
+// =================================
+
+// === CHANGE load balancing ===
+void
+monitor_load_balancing(void)
+{
+  struct cpu *c = mycpu();
+  struct cpu *target = find_best_pcore();
+  struct proc *p;
+
+  acquire(&c->queuelock);
+
+  if (target && c->proc_count >= target->proc_count + THRESHOLD_LOAD_BALANCE) { // we don't take target's lock because of potential deadlock
+      
+      p = c->runq_head;
+
+      if (p && p->pid > 2) { // do not migrate init and sh processes
+          // pop from c queue
+          c->runq_head = p->next;
+          if(c->runq_head == 0)
+            c->runq_tail = 0;
+          c->proc_count--;
+
+          p->next = 0;
+          release(&c->queuelock);
+          push_cpu(target, p);
+          return;
+      }
+  }
+  
+  release(&c->queuelock);
+}// =============================
 
 // === CHANGE general scheduler for both algorithms ===
 void
@@ -666,22 +725,20 @@ wakeup1(void *chan)
 
       // ===== CHANGE cpu queue (Hybrid Wakeup) ======
 
-      // 1. Check if cpu_id is valid
       if(p->cpu_id >= 0 && p->cpu_id < ncpu) {
         struct cpu *prev_cpu = &cpus[p->cpu_id];
         
-        // If it was on P-CORE -> Keep Affinity (Stay on P-Core)
+        // If it was on P-CORE -> Stay on P-Core
         if(prev_cpu->type == CPU_P_CORE){
            push_cpu(prev_cpu, p);
         }
-        // If it was on E-CORE -> Load Balance (Find best E-Core)
+        // If it was on E-CORE -> Find best E-Core for load balancing
         else {
            struct cpu *best_cpu = find_best_ecore();
            push_cpu(best_cpu, p);
         }
       }
       else {
-        // 2. Invalid CPU ID -> Treat as new/E-Core process
         struct cpu *best_cpu = find_best_ecore();
         push_cpu(best_cpu, p);
       }

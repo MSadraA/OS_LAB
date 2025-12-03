@@ -15,6 +15,7 @@ struct spinlock tickslock;
 uint ticks;
 
 const int RR_TIME_QUANTUM = 3; // 3 ticks equivalent to 30 ms
+const int MONITOR_TIME_QUANTUM = 5; // 5 ticks equivalent to 50 ms
 
 
 void
@@ -110,13 +111,25 @@ trap(struct trapframe *tf)
       // === CHANGE RR algorithm ===
       struct cpu *c = mycpu();
       c->rr_ticks++;
+
+      // === CHANGE load balancing ===
+      if (c->type == CPU_E_CORE) {
+          c->monitor_ticks++;
+          if (c->monitor_ticks >= MONITOR_TIME_QUANTUM) { 
+              c->monitor_ticks = 0;
+              monitor_load_balancing();
+          }
+      }
+      // ===========================
+
       // cprintf("[CPU %d] PID %d (E-Core) | Tick: %d\n", cpuid(), myproc()->pid, c->rr_ticks);
        if(c->type == CPU_E_CORE && c->rr_ticks >= RR_TIME_QUANTUM){
           c->rr_ticks = 0;
           yield();
        }
        else if (c->type == CPU_P_CORE) {
-         if(check_fcfs_preemption()) {
+         if(check_fcfs_preemption()) { // CHANGE for FCSFS
+           c->rr_ticks = 0;
            yield();
          }
        }

@@ -22,6 +22,8 @@ struct cpu {
   int type; // CHANGE cpu type (E_CORE or P_CORE)
 
   int rr_ticks; // CHANGE RR algorithm
+
+  int monitor_ticks; // CHANGE load balancing
 };
 
 extern struct cpu cpus[NCPU];
