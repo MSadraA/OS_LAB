@@ -135,3 +135,15 @@ sys_print_process_info(void) {
   print_process_info();
   return 0;
 }
+
+int
+sys_start_measuring(void)
+{
+  return cpu_start_measuring();
+}
+
+int
+sys_stop_measuring(void)
+{
+  return cpu_stop_measuring();
+}

@@ -34,6 +34,8 @@ SYSCALL(show_process_family)
 SYSCALL(grep_syscall)
 SYSCALL(set_priority_syscall)
 SYSCALL(print_process_info)
+SYSCALL(start_measuring)
+SYSCALL(stop_measuring)
 
 .globl simple_arithmetic_syscall
 simple_arithmetic_syscall:

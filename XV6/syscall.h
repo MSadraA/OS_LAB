@@ -28,3 +28,8 @@
 
 // Debug systemcalls for scheduler and cpu queue
 #define SYS_print_process_info 27
+
+// == Throughput measurement syscalls ==
+#define SYS_start_measuring 28
+#define SYS_stop_measuring 29
+// =====================================

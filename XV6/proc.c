@@ -16,6 +16,15 @@ static struct proc *initproc;
 
 struct spinlock print_lock;
 
+int start_time = 0;
+
+// === CHANGE throughput ===
+struct spinlock throughput_lock;
+int is_measuring_throughput = 0;
+uint throughput_start_ticks = 0;
+int finished_processes_count = 0;
+// =========================
+
 int nextpid = 1;
 extern void forkret(void);
 extern void trapret(void);
@@ -29,6 +38,7 @@ pinit(void)
 {
   initlock(&ptable.lock, "ptable");
   initlock(&print_lock, "print_lock"); // for debug systemcalls
+  initlock(&throughput_lock, "throughput"); // CHANGE throughput
 
   // ====== CHANGE cpu queue ======
   for(int i = 0; i < NCPU; i++){
@@ -408,6 +418,14 @@ exit(void)
   iput(curproc->cwd);
   end_op();
   curproc->cwd = 0;
+
+  // ====== CHANGE throughput =====
+  acquire(&throughput_lock);
+  if(is_measuring_throughput){
+    finished_processes_count++;
+  }
+  release(&throughput_lock);
+  // ==============================
 
   acquire(&ptable.lock);
 
@@ -1040,3 +1058,65 @@ print_process_info(void)
   release(&ptable.lock);
   release(&print_lock);
 }
+
+// ===== CHANGE throughput measurement =====
+int
+cpu_start_measuring(void)
+{
+  acquire(&tickslock);
+  uint current_ticks = ticks;
+  release(&tickslock);
+
+  acquire(&throughput_lock);
+  throughput_start_ticks = current_ticks;
+  finished_processes_count = 0;
+  is_measuring_throughput = 1;
+  release(&throughput_lock);
+  
+  return 0;
+}
+
+int
+cpu_stop_measuring(void)
+{
+  acquire(&tickslock);
+  uint now = ticks;
+  release(&tickslock);
+
+  acquire(&throughput_lock);
+  if(!is_measuring_throughput){
+    release(&throughput_lock);
+    return -1;
+  }
+  uint start = throughput_start_ticks;
+  int total = finished_processes_count;
+  is_measuring_throughput = 0;
+  release(&throughput_lock);
+
+  uint dur = now - start;
+  int main_part = 0;
+  int dec_part = 0;
+
+  if(dur > 0){
+    int val = (total * 10000) / dur;
+    main_part = val / 100;
+    dec_part = val % 100;
+  }
+
+  acquire(&print_lock);
+  cprintf("\n[Throughput Results]\n");
+  cprintf("--------------------\n");
+  cprintf("Finished:   %d\n", total);
+  cprintf("Time:       %d ticks\n", dur);
+  
+  cprintf("Rate:       %d.", main_part);
+  if(dec_part < 10)
+    cprintf("0");
+  cprintf("%d Proc/Sec\n", dec_part);
+  
+  cprintf("--------------------\n");
+  release(&print_lock);
+
+  return total;
+}
+// ====================================
