@@ -35,6 +35,11 @@ void
 releasesleep(struct sleeplock *lk)
 {
   acquire(&lk->lk);
+  // Check ownership
+  if (myproc()->pid != lk->pid) {
+    panic("releasesleep: not lock owner");
+  }
+  
   lk->locked = 0;
   lk->pid = 0;
   wakeup(lk);
