@@ -7,6 +7,9 @@
 #include "mmu.h"
 #include "proc.h"
 
+#include "spinlock.h"
+#include "sleeplock.h"
+
 int
 sys_fork(void)
 {
@@ -146,4 +149,28 @@ int
 sys_stop_measuring(void)
 {
   return cpu_stop_measuring();
+}
+
+// Define a global test lock within the kernel
+// used for LAB4
+struct sleeplock testlock;
+
+void
+testlockinit(void)
+{
+  initsleeplock(&testlock, "test_lock");
+}
+
+int 
+sys_acquire_test_lock(void)
+{
+  acquiresleep(&testlock);
+  return 0;
+}
+
+int
+sys_release_test_lock(void)
+{
+  releasesleep(&testlock);
+  return 0;
 }

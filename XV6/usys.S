@@ -36,6 +36,8 @@ SYSCALL(set_priority_syscall)
 SYSCALL(print_process_info)
 SYSCALL(start_measuring)
 SYSCALL(stop_measuring)
+SYSCALL(acquire_test_lock)
+SYSCALL(release_test_lock)
 
 .globl simple_arithmetic_syscall
 simple_arithmetic_syscall:

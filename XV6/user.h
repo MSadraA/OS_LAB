@@ -31,6 +31,8 @@ int set_priority_syscall(int, int);
 int print_process_info(void);
 int start_measuring(void);
 int stop_measuring(void);
+int acquire_test_lock(void);
+int release_test_lock(void);
 
 // ulib.c
 int stat(const char*, struct stat*);

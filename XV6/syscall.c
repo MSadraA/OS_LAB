@@ -111,6 +111,8 @@ extern int sys_set_priority_syscall(void);
 extern int sys_print_process_info(void);
 extern int sys_start_measuring(void);
 extern int sys_stop_measuring(void);
+extern int sys_acquire_test_lock(void);
+extern int sys_release_test_lock(void);
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -141,7 +143,9 @@ static int (*syscalls[])(void) = {
 [SYS_set_priority_syscall] sys_set_priority_syscall,
 [SYS_print_process_info] sys_print_process_info,
 [SYS_start_measuring] sys_start_measuring,
-[SYS_stop_measuring] sys_stop_measuring
+[SYS_stop_measuring] sys_stop_measuring,
+[SYS_acquire_test_lock] sys_acquire_test_lock,
+[SYS_release_test_lock] sys_release_test_lock
 };
 
 void

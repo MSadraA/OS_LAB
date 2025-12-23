@@ -33,3 +33,7 @@
 #define SYS_start_measuring 28
 #define SYS_stop_measuring 29
 // =====================================
+
+// LAB4 testlock
+#define SYS_acquire_test_lock  30
+#define SYS_release_test_lock  31
