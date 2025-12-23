@@ -33,6 +33,10 @@ int start_measuring(void);
 int stop_measuring(void);
 int acquire_test_lock(void);
 int release_test_lock(void);
+int rwlock_acquire_read(void);
+int rwlock_release_read(void);
+int rwlock_acquire_write(void);
+int rwlock_release_write(void);
 
 // ulib.c
 int stat(const char*, struct stat*);

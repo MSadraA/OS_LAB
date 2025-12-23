@@ -113,6 +113,10 @@ extern int sys_start_measuring(void);
 extern int sys_stop_measuring(void);
 extern int sys_acquire_test_lock(void);
 extern int sys_release_test_lock(void);
+extern int sys_rwlock_acquire_read(void);
+extern int sys_rwlock_release_read(void);
+extern int sys_rwlock_acquire_write(void);
+extern int sys_rwlock_release_write(void);
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -145,7 +149,11 @@ static int (*syscalls[])(void) = {
 [SYS_start_measuring] sys_start_measuring,
 [SYS_stop_measuring] sys_stop_measuring,
 [SYS_acquire_test_lock] sys_acquire_test_lock,
-[SYS_release_test_lock] sys_release_test_lock
+[SYS_release_test_lock] sys_release_test_lock,
+[SYS_rwlock_acquire_read]  sys_rwlock_acquire_read,
+[SYS_rwlock_release_read]  sys_rwlock_release_read,
+[SYS_rwlock_acquire_write] sys_rwlock_acquire_write,
+[SYS_rwlock_release_write] sys_rwlock_release_write
 };
 
 void

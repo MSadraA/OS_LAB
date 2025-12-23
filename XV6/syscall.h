@@ -37,3 +37,7 @@
 // LAB4 testlock
 #define SYS_acquire_test_lock  30
 #define SYS_release_test_lock  31
+#define SYS_rwlock_acquire_read   32
+#define SYS_rwlock_release_read   33
+#define SYS_rwlock_acquire_write  34
+#define SYS_rwlock_release_write  35

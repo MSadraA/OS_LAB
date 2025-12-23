@@ -17,6 +17,7 @@ OBJS = \
 	proc.o\
 	sleeplock.o\
 	spinlock.o\
+	rwlock.o\
 	string.o\
 	swtch.o\
 	syscall.o\
@@ -191,7 +192,8 @@ UPROGS=\
 	_wc\
 	_zombie\
 	_priority_test\
-	_test_sleeplock\
+	_test_slplock\
+	_test_rwlock\
 # 	_sys_grep_test\
 
 fs.img: mkfs README $(UPROGS)
@@ -270,7 +272,7 @@ EXTRA=\
 	ln.c ls.c mkdir.c rm.c stressfs.c usertests.c wc.c zombie.c\
 	printf.c umalloc.c\ show_p_family.c\
 	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\ find_sum.c\ test_sched.c\ testq.c\ test_tick.c\ arithmatic.c\ get_pid.c\ duplicate.c\
-	.gdbinit.tmpl gdbutil\ priority_test.c\ test_sleeplock\
+	.gdbinit.tmpl gdbutil\ priority_test.c\ test_slplock\ test_rwlock\
 	
 dist:
 	rm -rf dist

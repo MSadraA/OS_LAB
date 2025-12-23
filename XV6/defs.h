@@ -146,6 +146,7 @@ void            acquiresleep(struct sleeplock*);
 void            releasesleep(struct sleeplock*);
 int             holdingsleep(struct sleeplock*);
 void            initsleeplock(struct sleeplock*, char*);
+void            testrwlockinit(void);
 
 // used for LAB4
 void            testlockinit(void);

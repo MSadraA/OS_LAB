@@ -174,3 +174,41 @@ sys_release_test_lock(void)
   releasesleep(&testlock);
   return 0;
 }
+
+// LAB4
+#include "rwlock.h"
+struct rwlock test_rwlock;
+
+void
+testrwlockinit(void)
+{
+  rwlock_init(&test_rwlock, "test_rwlock");
+}
+
+int
+sys_rwlock_acquire_read(void)
+{
+  rwlock_acquire_read(&test_rwlock);
+  return 0;
+}
+
+int
+sys_rwlock_release_read(void)
+{
+  rwlock_release_read(&test_rwlock);
+  return 0;
+}
+
+int
+sys_rwlock_acquire_write(void)
+{
+  rwlock_acquire_write(&test_rwlock);
+  return 0;
+}
+
+int
+sys_rwlock_release_write(void)
+{
+  rwlock_release_write(&test_rwlock);
+  return 0;
+}

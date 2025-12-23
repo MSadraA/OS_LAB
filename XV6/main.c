@@ -37,6 +37,7 @@ main(void)
   
   // used for LAB4
   testlockinit();
+  testrwlockinit();
   
   mpmain();        // finish this processor's setup
 }
