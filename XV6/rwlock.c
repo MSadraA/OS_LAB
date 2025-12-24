@@ -20,7 +20,7 @@ rwlock_init(struct rwlock *rw, char *name)
 
 // Acquire lock for reading
 void
-rwlock_acquire_read(struct rwlock *rw)
+rwlockAcquireRead(struct rwlock *rw)
 {
   acquire(&rw->lk); // Lock internal state
 
@@ -35,7 +35,7 @@ rwlock_acquire_read(struct rwlock *rw)
 
 // Release lock for reading
 void
-rwlock_release_read(struct rwlock *rw)
+rwlockReleaseRead(struct rwlock *rw)
 {
   acquire(&rw->lk);
 
@@ -51,7 +51,7 @@ rwlock_release_read(struct rwlock *rw)
 
 // Acquire lock for writing
 void
-rwlock_acquire_write(struct rwlock *rw)
+rwlockAcquireWrite(struct rwlock *rw)
 {
   acquire(&rw->lk);
 
@@ -66,7 +66,7 @@ rwlock_acquire_write(struct rwlock *rw)
 
 // Release lock for writing
 void
-rwlock_release_write(struct rwlock *rw)
+rwlockReleaseWrite(struct rwlock *rw)
 {
   acquire(&rw->lk);
 

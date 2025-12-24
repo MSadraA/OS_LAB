@@ -153,8 +153,9 @@ sys_stop_measuring(void)
 
 // Define a global test lock within the kernel
 // used for LAB4
+// NOTE: we could have declared testlock and test_rwlock
+// in the test.c files too but! 
 struct sleeplock testlock;
-
 void
 testlockinit(void)
 {
@@ -178,7 +179,6 @@ sys_release_test_lock(void)
 // LAB4
 #include "rwlock.h"
 struct rwlock test_rwlock;
-
 void
 testrwlockinit(void)
 {
@@ -188,27 +188,38 @@ testrwlockinit(void)
 int
 sys_rwlock_acquire_read(void)
 {
-  rwlock_acquire_read(&test_rwlock);
+  rwlockAcquireRead(&test_rwlock);
   return 0;
 }
 
 int
 sys_rwlock_release_read(void)
 {
-  rwlock_release_read(&test_rwlock);
+  rwlockReleaseRead(&test_rwlock);
   return 0;
 }
 
 int
 sys_rwlock_acquire_write(void)
 {
-  rwlock_acquire_write(&test_rwlock);
+  rwlockAcquireWrite(&test_rwlock);
   return 0;
 }
 
 int
 sys_rwlock_release_write(void)
 {
-  rwlock_release_write(&test_rwlock);
+  rwlockReleaseWrite(&test_rwlock);
   return 0;
+}
+
+int
+sys_getlockstat(void)
+{
+  uint *scores;
+
+  if(argptr(0, (void*)&scores, sizeof(uint) * NCPU) < 0)
+    return -1;
+
+  return getlockstat(scores);
 }

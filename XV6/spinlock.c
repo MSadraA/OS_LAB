@@ -34,7 +34,7 @@ acquire(struct spinlock *lk)
   if(holding(lk))
   panic("acquire");
 
-  int cpuId = cpuid();
+  int cpuId = mycpu() - cpus;
   int spinCounter = 0;
 
   // The xchg is atomic.
@@ -136,3 +136,30 @@ popcli(void)
     sti();
 }
 
+// it was defined in trap.c
+// and its gonna be used for getlockstat
+extern struct spinlock tickslock;
+
+int
+getlockstat(uint *scores)
+{
+  struct spinlock *lk = &tickslock;
+
+  for(int i = 0; i < NCPU; i++) {
+    uint total_spins = lk->total_spins[i];
+    uint acq_count = lk->acq_count[i];
+    
+    uint score = 0;
+
+    // Note: we are using 10000 for scaling!
+    if (total_spins > 0) {
+      score = (acq_count * 10000) / total_spins; 
+    } else {
+      score = 100000; 
+    }
+
+    scores[i] = score;
+  }
+
+  return 0;
+}

@@ -11,4 +11,10 @@ struct rwlock {
   int write_locked;        // Is a writer holding the lock? (1 = yes, 0 = no)
 };
 
+void rwlock_init(struct rwlock *rw, char *name);
+void rwlockAcquireRead(struct rwlock *rw);
+void rwlockReleaseRead(struct rwlock *rw);
+void rwlockAcquireWrite(struct rwlock *rw);
+void rwlockReleaseWrite(struct rwlock *rw);
+
 #endif
