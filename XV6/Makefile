@@ -196,6 +196,7 @@ UPROGS=\
 	_test_slplock\
 	_test_rwlock\
 	_test_scale\
+	_test_plock\
 # 	_sys_grep_test\
 
 fs.img: mkfs README $(UPROGS)
@@ -274,7 +275,7 @@ EXTRA=\
 	ln.c ls.c mkdir.c rm.c stressfs.c usertests.c wc.c zombie.c\
 	printf.c umalloc.c\ show_p_family.c\
 	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\ find_sum.c\ test_sched.c\ testq.c\ test_tick.c\ arithmatic.c\ get_pid.c\ duplicate.c\
-	.gdbinit.tmpl gdbutil\ priority_test.c\ test_slplock\ test_rwlock\ test_scale\
+	.gdbinit.tmpl gdbutil\ priority_test.c\ test_slplock\ test_rwlock\ test_scale\ test_plock\
 	
 dist:
 	rm -rf dist
