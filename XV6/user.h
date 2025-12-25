@@ -38,6 +38,8 @@ int rwlock_release_read(void);
 int rwlock_acquire_write(void);
 int rwlock_release_write(void);
 int getlockstat(uint *);
+int plock_acquire(int);
+int plock_release(void);
 
 // ulib.c
 int stat(const char*, struct stat*);

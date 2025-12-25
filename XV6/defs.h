@@ -148,9 +148,14 @@ void            releasesleep(struct sleeplock*);
 int             holdingsleep(struct sleeplock*);
 void            initsleeplock(struct sleeplock*, char*);
 void            testrwlockinit(void);
-
 // used for LAB4
 void            testlockinit(void);
+
+// plock.c
+struct plock; // Forward declaration
+void            plock_init(struct plock *, char *);
+void            plock_acquire(struct plock *, int);
+void            plock_release(struct plock *pl);
 
 // string.c
 int             memcmp(const void*, const void*, uint);

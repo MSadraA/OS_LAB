@@ -43,6 +43,8 @@ SYSCALL(rwlock_release_read)
 SYSCALL(rwlock_acquire_write)
 SYSCALL(rwlock_release_write)
 SYSCALL(getlockstat)
+SYSCALL(plock_acquire)
+SYSCALL(plock_release)
 
 .globl simple_arithmetic_syscall
 simple_arithmetic_syscall:

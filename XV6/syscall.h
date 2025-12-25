@@ -34,7 +34,7 @@
 #define SYS_stop_measuring 29
 // =====================================
 
-// LAB4 testlock
+// LAB4
 #define SYS_acquire_test_lock  30
 #define SYS_release_test_lock  31
 #define SYS_rwlock_acquire_read   32
@@ -42,3 +42,6 @@
 #define SYS_rwlock_acquire_write  34
 #define SYS_rwlock_release_write  35
 #define SYS_getlockstat  36
+#define SYS_plock_acquire 37
+#define SYS_plock_release 38
+
