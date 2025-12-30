@@ -181,9 +181,6 @@ UPROGS=\
 	_stressfs\
 	_arithmatic\
 	_find_sum\
-	_test_sched\
-	_testq\
-	_test_tick\
 	_show_p_family\
 	_duplicate\
 	_get_pid\
@@ -191,7 +188,7 @@ UPROGS=\
 	_wc\
 	_zombie\
 	_priority_test\
-# 	_sys_grep_test\
+	_sys_grep_test\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
@@ -228,7 +225,7 @@ QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
 	then echo "-gdb tcp::$(GDBPORT)"; \
 	else echo "-s -p $(GDBPORT)"; fi)
 ifndef CPUS
-CPUS := 6
+CPUS := 1
 endif
 QEMUOPTS = -drive file=fs.img,index=1,media=disk,format=raw -drive file=xv6.img,index=0,media=disk,format=raw -smp cpus=$(CPUS),cores=1,threads=1,sockets=$(CPUS) -m 512 $(QEMUEXTRA)
 qemu: fs.img xv6.img
@@ -268,7 +265,7 @@ EXTRA=\
 	mkfs.c ulib.c user.h cat.c echo.c forktest.c grep.c kill.c\
 	ln.c ls.c mkdir.c rm.c stressfs.c usertests.c wc.c zombie.c\
 	printf.c umalloc.c\ show_p_family.c\
-	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\ find_sum.c\ test_sched.c\ testq.c\ test_tick.c\ arithmatic.c\ get_pid.c\ duplicate.c\
+	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\ find_sum.c\ sys_grep_test.c\ arithmatic.c\ get_pid.c\ duplicate.c\
 	.gdbinit.tmpl gdbutil\ priority_test.c\
 	
 dist:
