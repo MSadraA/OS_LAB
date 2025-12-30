@@ -7,6 +7,9 @@
 #include "mmu.h"
 #include "proc.h"
 
+#include "spinlock.h"
+#include "sleeplock.h"
+
 int
 sys_fork(void)
 {
@@ -146,4 +149,100 @@ int
 sys_stop_measuring(void)
 {
   return cpu_stop_measuring();
+}
+
+// Define a global test lock within the kernel
+// used for LAB4
+// NOTE: we could have declared testlock and test_rwlock
+// in the test.c files too but! 
+struct sleeplock testlock;
+void
+testlockinit(void)
+{
+  initsleeplock(&testlock, "test_lock");
+}
+
+int 
+sys_acquire_test_lock(void)
+{
+  acquiresleep(&testlock);
+  return 0;
+}
+
+int
+sys_release_test_lock(void)
+{
+  releasesleep(&testlock);
+  return 0;
+}
+
+// LAB4
+#include "rwlock.h"
+struct rwlock test_rwlock;
+void
+testrwlockinit(void)
+{
+  rwlock_init(&test_rwlock, "test_rwlock");
+}
+
+int
+sys_rwlock_acquire_read(void)
+{
+  rwlockAcquireRead(&test_rwlock);
+  return 0;
+}
+
+int
+sys_rwlock_release_read(void)
+{
+  rwlockReleaseRead(&test_rwlock);
+  return 0;
+}
+
+int
+sys_rwlock_acquire_write(void)
+{
+  rwlockAcquireWrite(&test_rwlock);
+  return 0;
+}
+
+int
+sys_rwlock_release_write(void)
+{
+  rwlockReleaseWrite(&test_rwlock);
+  return 0;
+}
+
+int
+sys_getlockstat(void)
+{
+  uint *scores;
+
+  if(argptr(0, (void*)&scores, sizeof(uint) * NCPU) < 0)
+    return -1;
+
+  return getlockstat(scores);
+}
+
+// LAB4: plock
+#include "plock.h"
+extern struct plock global_plock;
+
+int
+sys_plock_acquire(void)
+{
+  int priority;
+  
+  if(argint(0, &priority) < 0)
+    return -1;
+    
+  plock_acquire(&global_plock, priority);
+  return 0;
+}
+
+int
+sys_plock_release(void)
+{
+  plock_release(&global_plock);
+  return 0;
 }

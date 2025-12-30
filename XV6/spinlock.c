@@ -4,10 +4,11 @@
 #include "defs.h"
 #include "param.h"
 #include "x86.h"
-#include "memlayout.h"
+#include "memlayout.h" 
 #include "mmu.h"
 #include "proc.h"
 #include "spinlock.h"
+
 
 void
 initlock(struct spinlock *lk, char *name)
@@ -15,6 +16,11 @@ initlock(struct spinlock *lk, char *name)
   lk->name = name;
   lk->locked = 0;
   lk->cpu = 0;
+
+  for (int i = 0; i < NCPU; i++) {
+    lk->acq_count[i] = 0;
+    lk->total_spins[i] = 0;
+  }
 }
 
 // Acquire the lock.
@@ -26,11 +32,17 @@ acquire(struct spinlock *lk)
 {
   pushcli(); // disable interrupts to avoid deadlock.
   if(holding(lk))
-    panic("acquire");
+  panic("acquire");
+
+  int cpuId = mycpu() - cpus;
+  int spinCounter = 0;
 
   // The xchg is atomic.
-  while(xchg(&lk->locked, 1) != 0)
-    ;
+  while(xchg(&lk->locked, 1) != 0) {
+    spinCounter++;
+  }
+  lk->total_spins[cpuId] += spinCounter;
+  lk->acq_count[cpuId] += 1;
 
   // Tell the C compiler and the processor to not move loads or stores
   // past this point, to ensure that the critical section's memory
@@ -124,3 +136,30 @@ popcli(void)
     sti();
 }
 
+// it was defined in trap.c
+// and its gonna be used for getlockstat
+extern struct spinlock tickslock;
+
+int
+getlockstat(uint *scores)
+{
+  struct spinlock *lk = &tickslock;
+
+  for(int i = 0; i < NCPU; i++) {
+    uint total_spins = lk->total_spins[i];
+    uint acq_count = lk->acq_count[i];
+    
+    uint score = 0;
+
+    // Note: we are using 10000 for scaling!
+    if (total_spins > 0) {
+      score = (acq_count * 10000) / total_spins; 
+    } else {
+      score = 100000; 
+    }
+
+    scores[i] = score;
+  }
+
+  return 0;
+}
